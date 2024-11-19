@@ -22,7 +22,7 @@ dims gridDim = {};
 #include <cuda_runtime.h>
 #endif
 
-template <int nSize, typename ty> __device__ void simple_hadamard(ty x[]) {
+template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
   for (int32_t exchange = 1; exchange < nSize; exchange *= 2) {
     int32_t group_size = exchange << 1;
@@ -38,6 +38,23 @@ template <int nSize, typename ty> __device__ void simple_hadamard(ty x[]) {
         x[i0] = a + b;
         x[i1] = a - b;
       }
+    }
+  }
+}
+
+template <int nSize, int nThreads, typename ty>
+__device__ void warp_shuffle_hadamard(ty x[nSize]) {
+
+  int32_t thread_idx = threadIdx.x % nThreads;
+#pragma unroll
+  for (int32_t exchange = 1; exchange < nThreads; exchange *= 2) {
+    int32_t group_size = exchange << 1;
+    bool is_bottom = exchange & thread_idx;
+#pragma unroll
+    for (int32_t i = 0; i < nSize; i++) {
+      int32_t this_val = x[i];
+      int32_t other_x = __shfl_xor_sync(-1, this_val, exchange);
+      x[i] = other_x + (is_bottom ? -1 : 1) * x[i];
     }
   }
 }
