@@ -22,6 +22,8 @@ dims gridDim = {};
 #include <cuda_runtime.h>
 #endif
 
+#include <assert.h>
+
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
   for (int32_t exchange = 1; exchange < nSize; exchange *= 2) {
@@ -42,19 +44,54 @@ template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
   }
 }
 
-template <int nSize, int nThreads, typename ty>
+#define FULL_MASK uint32_t(-1)
+
+template <int nSize, int nWarpSize, typename ty>
 __device__ void warp_shuffle_hadamard(ty x[nSize]) {
 
-  int32_t thread_idx = threadIdx.x % nThreads;
+  int32_t thread_idx = threadIdx.x % nWarpSize;
 #pragma unroll
-  for (int32_t exchange = 1; exchange < nThreads; exchange *= 2) {
+  for (int32_t exchange = 1; exchange < nWarpSize; exchange *= 2) {
     int32_t group_size = exchange << 1;
     bool is_bottom = exchange & thread_idx;
 #pragma unroll
     for (int32_t i = 0; i < nSize; i++) {
       int32_t this_val = x[i];
-      int32_t other_x = __shfl_xor_sync(-1, this_val, exchange);
+      int32_t other_x = __shfl_xor_sync(FULL_MASK, this_val, exchange);
       x[i] = other_x + (is_bottom ? -1 : 1) * x[i];
     }
   }
 }
+
+template <int nSize, int nWarpSize, typename ty>
+__device__ void hadamard_transform(ty x[nSize]) {
+  simple_hadamard<nSize, ty>(x);
+  warp_shuffle_hadamard<nSize, ty>(x);
+}
+
+template <int nFullSize, int nWarpSize, typename ty>
+__device__ void hadamard_transform_form_shmem(ty shmem_x[nFullSize]) {
+  if (threadIdx.x >= nWarpSize) {
+    // multi-warp not yet supported
+    return;
+  }
+  static_assert(nFullSize % nWarpSize == 0,
+                "nFullSize must be divisible by nWarpSize");
+  constexpr int32_t nSize = nFullSize / nWarpSize;
+  ty x[nSize];
+  int32_t i0 = threadIdx.x * nSize;
+#pragma unroll
+  for (int32_t i = 0; i < nSize; i++) {
+    int32_t j = i ^ threadIdx.x;
+    x[j] = shmem_x[i0 + j];
+  }
+
+  simple_hadamard<nSize, nWarpSize, ty>(x);
+
+#pragma unroll
+  for (int32_t i = 0; i < nSize; i++) {
+    int32_t j = i ^ threadIdx.x;
+    shmem_x[i0 + j] = shmem_x[j];
+  }
+}
+
