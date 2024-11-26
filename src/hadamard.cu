@@ -1,4 +1,3 @@
-/*
 #ifndef __CUDACC__ // If we're not compiling with nvcc or CUDA isn't available
 #define __shared__
 // #include <thread>
@@ -24,11 +23,9 @@ dims gridDim = {};
 #endif
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdio.h>
-*/
-#include <cuda_runtime.h>
 
-/*
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
   for (int32_t exchange = 1; exchange < nSize; exchange *= 2) {
@@ -68,10 +65,35 @@ __device__ void warp_shuffle_hadamard(ty x[nSize]) {
   }
 }
 
-template <int nSize, int nWarpSize, typename ty>
-__device__ void hadamard_transform(ty x[nSize]) {
+template <int nSize, int nThreads, int nWarpSize, typename ty>
+__device__ void interwarp_transpose(ty x[nSize], ty *shmem) {
+  constexpr int32_t nWarps = nThreads / nWarpSize;
+  int32_t thread_id = threadIdx.x % nWarpSize;
+  int32_t warp_id = threadIdx.x / nWarpSize;
+  int32_t transposed_thread_id = threadIdx.x / nWarps;
+  int32_t transposed_warp_id = threadIdx.x % nWarps;
+#define index_of(i, thread, warp) (i * n + warp * nWarpSize + thread)
+
+  for (int32_t i = 0; i < nSize; i++) {
+    shmem[index_of(i, thread_id, warp_id)] = x[i];
+  }
+  __syncthreads();
+  for (int32_t i = 0; i < nSize; i++) {
+    x[i] = shmem[index_of(i, transposed_thread_id, transposed_warp_id)]
+  }
+}
+
+template <int nSize, int nThreads, int nWarpSize, typename ty>
+__device__ void hadamard_transform(ty x[nSize], ty *shmem) {
+  constexpr int32_t nWarps = nThreads / nWarpSize;
   simple_hadamard<nSize, ty>(x);
-  warp_shuffle_hadamard<nSize, ty>(x);
+  warp_shuffle_hadamard<nSize, nWarpSize, ty>(x);
+  if (nWarps > 1) {
+    assert(shmem != nullptr);
+    interwarp_transpose<nSize, nThreads, nWarpSize, ty>(x, shmem);
+    warp_shuffle_hadamard<nSize, nWarps, ty>(x);
+    interwarp_transpose<nSize, nThreads, nWarpSize, ty>(x, shmem);
+  }
 }
 
 template <int nFullSize, int nWarpSize, typename ty>
@@ -104,7 +126,7 @@ template <int nFullSize, int nWarpSize, typename ty>
 __global__ void hadamard_transform_from_global(ty *x) {
   ty *block_x = x + nFullSize * blockIdx.x;
   extern __shared__ float shmem[];
-  ty shmem_x[nFullSize] = (ty *)shmem;
+  ty *shmem_x = (ty *)shmem;
 
   for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
     shmem_x[i] = block_x[i];
@@ -116,7 +138,8 @@ __global__ void hadamard_transform_from_global(ty *x) {
     block_x[i] = shmem_x[i];
   }
 }
-*/
+
 int main() {
-  return 0; // printf("Hello World!");
+  printf("Hello World!\n");
+  return 0;
 }

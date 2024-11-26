@@ -2,4 +2,5 @@
 
 echo "Starting..."
 
+echo $(ls)
 ./hadamard
