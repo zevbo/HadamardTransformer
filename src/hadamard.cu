@@ -1,4 +1,5 @@
-#ifndef __CUDACC__ // If we're not compiling with nvcc or CUDA isn't available
+#ifndef __ACTUALLY_DEFINED__ // If we're not compiling with nvcc or CUDA isn't
+                             // available
 #define __shared__
 // #include <thread>
 #include <ctime>
@@ -23,6 +24,7 @@ dims gridDim = {};
 #endif
 
 #include <assert.h>
+#include <stdio.h>
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
@@ -106,4 +108,10 @@ __global__ void hadamard_transform_from_global(ty *x) {
   }
 
   hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
+
+  for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
+    block_x[i] = shmem_x[i];
+  }
 }
+
+int main() { printf("Hello World!"); }

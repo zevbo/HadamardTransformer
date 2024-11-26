@@ -4,4 +4,4 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 # Install needed packages.
 RUN apt update && \
-    apt -y install python3 cuda-nvcc-12-4
+    apt -y install python3 

@@ -13,4 +13,4 @@ echo "Building the project..."
 # -----     * all output files (e.g. generated binaries, test inputs, etc.) must be places into $CTR_BUILD_DIR
 # ----------------------------------------------------------------------------------
 # Build code.
-nvcc -O3 hadamard.cu -o ${CTR_BUILD_DIR}/hadamard
+nvcc -O3 D__ACTUALLY_DEFINED__=1 hadamard.cu -o ${CTR_BUILD_DIR}/hadamard
