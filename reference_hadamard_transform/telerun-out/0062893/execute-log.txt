@@ -1,0 +1,22 @@
+Hello World
+Collecting pytest
+  Downloading pytest-8.3.3-py3-none-any.whl (342 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 342.3/342.3 KB 1.8 MB/s eta 0:00:00
+Collecting packaging
+  Downloading packaging-24.2-py3-none-any.whl (65 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 65.5/65.5 KB 3.0 MB/s eta 0:00:00
+Collecting tomli>=1
+  Downloading tomli-2.1.0-py3-none-any.whl (13 kB)
+Collecting pluggy<2,>=1.5
+  Downloading pluggy-1.5.0-py3-none-any.whl (20 kB)
+Collecting iniconfig
+  Downloading iniconfig-2.0.0-py3-none-any.whl (5.9 kB)
+Collecting exceptiongroup>=1.0.0rc8
+  Downloading exceptiongroup-1.2.2-py3-none-any.whl (16 kB)
+Installing collected packages: tomli, pluggy, packaging, iniconfig, exceptiongroup, pytest
+Successfully installed exceptiongroup-1.2.2 iniconfig-2.0.0 packaging-24.2 pluggy-1.5.0 pytest-8.3.3 tomli-2.1.0
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+Traceback (most recent call last):
+  File "/tmp/telerun-execute/155f9172-d2b3-4ab3-852c-b6c076b4f8e1/fast-hadamard-transform/tests/test_fast_hadamard_transform.py", line 8, in <module>
+    from einops import rearrange, repeat
+ModuleNotFoundError: No module named 'einops'

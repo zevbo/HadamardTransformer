@@ -1,0 +1,107 @@
+Hello World
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  at-spi2-core ca-certificates-java cuda-cccl-12-1
+  cuda-command-line-tools-12-1 cuda-compiler-12-1 cuda-cudart-12-1
+  cuda-cudart-dev-12-1 cuda-cuobjdump-12-1 cuda-cupti-12-1 cuda-cupti-dev-12-1
+  cuda-cuxxfilt-12-1 cuda-documentation-12-1 cuda-driver-dev-12-1
+  cuda-gdb-12-1 cuda-libraries-12-1 cuda-libraries-dev-12-1 cuda-nsight-12-1
+  cuda-nsight-compute-12-1 cuda-nsight-systems-12-1 cuda-nvcc-12-1
+  cuda-nvdisasm-12-1 cuda-nvml-dev-12-1 cuda-nvprof-12-1 cuda-nvprune-12-1
+  cuda-nvrtc-12-1 cuda-nvrtc-dev-12-1 cuda-nvtx-12-1 cuda-nvvp-12-1
+  cuda-opencl-12-1 cuda-opencl-dev-12-1 cuda-profiler-api-12-1
+  cuda-sanitizer-12-1 cuda-toolkit-12-1-config-common cuda-tools-12-1
+  cuda-visual-tools-12-1 dbus-user-session dconf-gsettings-backend
+  dconf-service default-jre default-jre-headless fonts-dejavu-extra
+  gds-tools-12-1 gsettings-desktop-schemas java-common libatk-bridge2.0-0
+  libatk-wrapper-java libatk-wrapper-java-jni libatk1.0-0 libatk1.0-data
+  libatspi2.0-0 libavahi-client3 libavahi-common-data libavahi-common3
+  libcublas-12-1 libcublas-dev-12-1 libcufft-12-1 libcufft-dev-12-1
+  libcufile-12-1 libcufile-dev-12-1 libcups2 libcurand-12-1 libcurand-dev-12-1
+  libcusolver-12-1 libcusolver-dev-12-1 libcusparse-12-1 libcusparse-dev-12-1
+  libdconf1 libegl-mesa0 libegl1 libfontenc1 libgif7 libice6 liblcms2-2
+  libnpp-12-1 libnpp-dev-12-1 libnspr4 libnss3 libnvjitlink-12-1
+  libnvjitlink-dev-12-1 libnvjpeg-12-1 libnvjpeg-dev-12-1 libnvvm-samples-12-1
+  libopengl0 libpcsclite1 libsm6 libtinfo5 libxaw7 libxcb-icccm4 libxcb-image0
+  libxcb-keysyms1 libxcb-render-util0 libxcb-util1 libxcb-xinerama0
+  libxcb-xinput0 libxcb-xkb1 libxcomposite1 libxdamage1 libxft2
+  libxkbcommon-x11-0 libxkbfile1 libxmu6 libxt6 libxtst6 libxxf86dga1
+  nsight-compute-2023.1.1 nsight-systems-2023.1.2 openjdk-11-jre
+  openjdk-11-jre-headless session-migration x11-utils
+Suggested packages:
+  cups-common liblcms2-utils pcscd libnss-mdns fonts-ipafont-gothic
+  fonts-ipafont-mincho fonts-wqy-microhei | fonts-wqy-zenhei fonts-indic
+  mesa-utils
+The following NEW packages will be installed:
+  at-spi2-core ca-certificates-java cuda-cccl-12-1
+  cuda-command-line-tools-12-1 cuda-compiler-12-1 cuda-cudart-12-1
+  cuda-cudart-dev-12-1 cuda-cuobjdump-12-1 cuda-cupti-12-1 cuda-cupti-dev-12-1
+  cuda-cuxxfilt-12-1 cuda-documentation-12-1 cuda-driver-dev-12-1
+  cuda-gdb-12-1 cuda-libraries-12-1 cuda-libraries-dev-12-1 cuda-nsight-12-1
+  cuda-nsight-compute-12-1 cuda-nsight-systems-12-1 cuda-nvcc-12-1
+  cuda-nvdisasm-12-1 cuda-nvml-dev-12-1 cuda-nvprof-12-1 cuda-nvprune-12-1
+  cuda-nvrtc-12-1 cuda-nvrtc-dev-12-1 cuda-nvtx-12-1 cuda-nvvp-12-1
+  cuda-opencl-12-1 cuda-opencl-dev-12-1 cuda-profiler-api-12-1
+  cuda-sanitizer-12-1 cuda-toolkit-12-1 cuda-toolkit-12-1-config-common
+  cuda-tools-12-1 cuda-visual-tools-12-1 dbus-user-session
+  dconf-gsettings-backend dconf-service default-jre default-jre-headless
+  fonts-dejavu-extra gds-tools-12-1 gsettings-desktop-schemas java-common
+  libatk-bridge2.0-0 libatk-wrapper-java libatk-wrapper-java-jni libatk1.0-0
+  libatk1.0-data libatspi2.0-0 libavahi-client3 libavahi-common-data
+  libavahi-common3 libcublas-12-1 libcublas-dev-12-1 libcufft-12-1
+  libcufft-dev-12-1 libcufile-12-1 libcufile-dev-12-1 libcups2 libcurand-12-1
+  libcurand-dev-12-1 libcusolver-12-1 libcusolver-dev-12-1 libcusparse-12-1
+  libcusparse-dev-12-1 libdconf1 libegl-mesa0 libegl1 libfontenc1 libgif7
+  libice6 liblcms2-2 libnpp-12-1 libnpp-dev-12-1 libnspr4 libnss3
+  libnvjitlink-12-1 libnvjitlink-dev-12-1 libnvjpeg-12-1 libnvjpeg-dev-12-1
+  libnvvm-samples-12-1 libopengl0 libpcsclite1 libsm6 libtinfo5 libxaw7
+  libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-util1
+  libxcb-xinerama0 libxcb-xinput0 libxcb-xkb1 libxcomposite1 libxdamage1
+  libxft2 libxkbcommon-x11-0 libxkbfile1 libxmu6 libxt6 libxtst6 libxxf86dga1
+  nsight-compute-2023.1.1 nsight-systems-2023.1.2 openjdk-11-jre
+  openjdk-11-jre-headless session-migration x11-utils
+0 upgraded, 111 newly installed, 0 to remove and 21 not upgraded.
+Need to get 2808 MB of archives.
+After this operation, 6523 MB of additional disk space will be used.
+Do you want to continue? [Y/n] Abort.
+
+/tmp/telerun-execute/155f9172-d2b3-4ab3-852c-b6c076b4f8e1/run.sh: line 6: nvcc: command not found
+bin.tar fast-hadamard-transform out run.sh
+Requirement already satisfied: pytest in /usr/local/lib/python3.10/dist-packages (8.3.3)
+Requirement already satisfied: einops in /usr/local/lib/python3.10/dist-packages (0.8.0)
+Requirement already satisfied: exceptiongroup>=1.0.0rc8 in /usr/local/lib/python3.10/dist-packages (from pytest) (1.2.2)
+Requirement already satisfied: packaging in /usr/local/lib/python3.10/dist-packages (from pytest) (24.2)
+Requirement already satisfied: iniconfig in /usr/local/lib/python3.10/dist-packages (from pytest) (2.0.0)
+Requirement already satisfied: tomli>=1 in /usr/local/lib/python3.10/dist-packages (from pytest) (2.1.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /usr/local/lib/python3.10/dist-packages (from pytest) (1.5.0)
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+theory_cuda_home = '/usr/local/cuda', os.path.exists(theory_cuda_home) = True
+cpp_extension.CUDA_HOME = '/usr/local/cuda'
+cpp_extension._find_cuda_home() = '/usr/local/cuda'
+cpp_extension.CUDA_HOME = '/usr/local/cuda'
+
+
+torch.__version__  = 2.5.1+cu124
+
+
+Traceback (most recent call last):
+  File "/tmp/telerun-execute/155f9172-d2b3-4ab3-852c-b6c076b4f8e1/fast-hadamard-transform/setup.py", line 116, in <module>
+    _, bare_metal_version = get_cuda_bare_metal_version(CUDA_HOME)
+  File "/tmp/telerun-execute/155f9172-d2b3-4ab3-852c-b6c076b4f8e1/fast-hadamard-transform/setup.py", line 78, in get_cuda_bare_metal_version
+    raw_output = subprocess.check_output(
+  File "/usr/lib/python3.10/subprocess.py", line 421, in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+  File "/usr/lib/python3.10/subprocess.py", line 503, in run
+    with Popen(*popenargs, **kwargs) as process:
+  File "/usr/lib/python3.10/subprocess.py", line 971, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+  File "/usr/lib/python3.10/subprocess.py", line 1863, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: '/usr/local/cuda/bin/nvcc'
+Finished install
+Traceback (most recent call last):
+  File "/tmp/telerun-execute/155f9172-d2b3-4ab3-852c-b6c076b4f8e1/fast-hadamard-transform/tests/test_fast_hadamard_transform.py", line 10, in <module>
+    from fast_hadamard_transform.fast_hadamard_transform_interface import hadamard_transform, hadamard_transform_ref
+ModuleNotFoundError: No module named 'fast_hadamard_transform'

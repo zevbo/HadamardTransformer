@@ -70,7 +70,7 @@ __device__ void hadamard_transform(ty x[nSize]) {
 }
 
 template <int nFullSize, int nWarpSize, typename ty>
-__device__ void hadamard_transform_form_shmem(ty shmem_x[nFullSize]) {
+__device__ void hadamard_transform_from_shmem(ty *shmem_x) {
   if (threadIdx.x >= nWarpSize) {
     // multi-warp not yet supported
     return;
@@ -95,3 +95,15 @@ __device__ void hadamard_transform_form_shmem(ty shmem_x[nFullSize]) {
   }
 }
 
+template <int nFullSize, int nWarpSize, typename ty>
+__global__ void hadamard_transform_from_global(ty *x) {
+  ty *block_x = x + nFullSize * blockIdx.x;
+  extern __shared__ float shmem[];
+  ty shmem_x[nFullSize] = (ty *)shmem;
+
+  for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
+    shmem_x[i] = block_x[i];
+  }
+
+  hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
+}
