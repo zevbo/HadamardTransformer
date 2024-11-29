@@ -20,11 +20,13 @@ dims gridDim = {};
 // #include <immintrin.h>
 #else
 #include <cuda_runtime.h>
+#include <torch/extension.h>
 #endif
 
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <vector>
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
@@ -72,14 +74,14 @@ __device__ void interwarp_transpose(ty x[nSize], ty *shmem) {
   int32_t warp_id = threadIdx.x / nWarpSize;
   int32_t transposed_thread_id = threadIdx.x / nWarps;
   int32_t transposed_warp_id = threadIdx.x % nWarps;
-#define index_of(i, thread, warp) (i * n + warp * nWarpSize + thread)
+#define index_of(i, thread, warp) (i * nThreads + warp * nWarpSize + thread)
 
   for (int32_t i = 0; i < nSize; i++) {
     shmem[index_of(i, thread_id, warp_id)] = x[i];
   }
   __syncthreads();
   for (int32_t i = 0; i < nSize; i++) {
-    x[i] = shmem[index_of(i, transposed_thread_id, transposed_warp_id)]
+    x[i] = shmem[index_of(i, transposed_thread_id, transposed_warp_id)];
   }
 }
 
@@ -113,7 +115,7 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
     x[j] = shmem_x[i0 + j];
   }
 
-  simple_hadamard<nSize, nWarpSize, ty>(x);
+  hadamard_transform<nSize, nWarpSize, nWarpSize, ty>(x, shmem_x);
 
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
@@ -123,8 +125,9 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
 }
 
 template <int nFullSize, int nWarpSize, typename ty>
-__global__ void hadamard_transform_from_global(ty *x) {
-  ty *block_x = x + nFullSize * blockIdx.x;
+__global__ void hadamard_transform_from_global(const ty *x, ty *out) {
+  const ty *block_x = x + nFullSize * blockIdx.x;
+  ty *block_out = out + nFullSize * blockIdx.x;
   extern __shared__ float shmem[];
   ty *shmem_x = (ty *)shmem;
 
@@ -135,8 +138,17 @@ __global__ void hadamard_transform_from_global(ty *x) {
   hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
 
   for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
-    block_x[i] = shmem_x[i];
+    block_out[i] = shmem_x[i];
   }
+}
+
+torch::Tensor hadamard_transform_f32_1024(torch::Tensor x) {
+  TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
+  TORCH_CHECK(x.scalar_type() == torch::kFloat, "Must be f32");
+  auto out = torch::empty_like(x);
+  hadamard_transform_from_global<1024, 32, float>
+      <<<1, 32>>>(x.data_ptr<float>(), out.data_ptr<float>());
+  return out;
 }
 
 int main() {
