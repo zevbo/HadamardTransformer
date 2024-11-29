@@ -56,7 +56,6 @@ __device__ void warp_shuffle_hadamard(ty x[nSize]) {
   int32_t thread_idx = threadIdx.x % nWarpSize;
 #pragma unroll
   for (int32_t exchange = 1; exchange < nWarpSize; exchange *= 2) {
-    int32_t group_size = exchange << 1;
     bool is_bottom = exchange & thread_idx;
 #pragma unroll
     for (int32_t i = 0; i < nSize; i++) {
