@@ -49,7 +49,7 @@ template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
   }
 }
 
-#define FULL_MASK uint32_t(-1)
+#define FULL_MASK 0xFFFFFFFF // uint32_t(-1)
 
 template <int nSize, int nWarpSize, typename ty>
 __device__ void warp_shuffle_hadamard(ty x[nSize]) {
@@ -57,12 +57,12 @@ __device__ void warp_shuffle_hadamard(ty x[nSize]) {
   int32_t thread_idx = threadIdx.x % nWarpSize;
 #pragma unroll
   for (int32_t exchange = 1; exchange < nWarpSize; exchange *= 2) {
-    bool is_bottom = exchange & thread_idx;
+    bool is_bottom = (exchange & thread_idx);
 #pragma unroll
     for (int32_t i = 0; i < nSize; i++) {
-      int32_t this_val = x[i];
-      int32_t other_x = __shfl_xor_sync(FULL_MASK, this_val, exchange);
-      x[i] = other_x + (is_bottom ? -1 : 1) * x[i];
+      ty this_val = x[i];
+      ty other_x = __shfl_xor_sync(FULL_MASK, this_val, exchange, nWarpSize);
+      x[i] = other_x + (is_bottom ? -1 : 1) * this_val;
     }
   }
 }
@@ -120,7 +120,7 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
     int32_t j = i ^ threadIdx.x;
-    shmem_x[i0 + j] = shmem_x[j];
+    shmem_x[i0 + j] = x[j];
   }
 }
 

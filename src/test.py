@@ -13,6 +13,13 @@ def test_hadamard():
     # Create test tensors
     x = torch.randn(1024, device="cuda", dtype=torch.float32)
 
+    s = 0
+    for i in range(32):
+        s += x[i * 32]
+        print(f"{x[i * 32]}, ", end="")
+
+    print(f"\n{s = }")
+
     # Call your CUDA function
     print(f"{x = }")
     H = scipy_hadamard(1024)
@@ -20,6 +27,7 @@ def test_hadamard():
     print(f"{correct[0] = }")
     c = hadamard_cuda.hadamard_transform_f32_1024(x)
     print(f"{c[0] = }")
+    print(f"{c[32] = }")
 
     # Verify results (assuming hadamard is element-wise multiplication)
     # expected = a * b
