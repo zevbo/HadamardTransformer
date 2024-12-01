@@ -19,6 +19,7 @@ dims gridDim = {};
 
 // #include <immintrin.h>
 #else
+#include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <torch/extension.h>
 #endif
@@ -27,6 +28,8 @@ dims gridDim = {};
 #include <stdint.h>
 #include <stdio.h>
 #include <vector>
+
+typedef __half half;
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
@@ -121,6 +124,45 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
   for (int32_t i = 0; i < nSize; i++) {
     int32_t j = i ^ threadIdx.x;
     shmem_x[i0 + j] = x[j];
+  }
+}
+
+__device__ char float16_to_int4(half val, float scale) {
+  float f32 = __half2float(val);
+  int scaled = __float2int_rn(f32 * scale);
+  return (char)min(max(scaled, -8), 7);
+}
+
+__device__ char comb_int4s(char i41, char i42) { return (i41 << 4) + i42; }
+
+template <int nFullSize, int nWarpSize>
+__device__ void hadamard_transform_quantize(const half *input_x, char *output) {
+  if (threadIdx.x >= nWarpSize) {
+    // multi-warp not yet supported
+    return;
+  }
+  static_assert(nFullSize % nWarpSize == 0,
+                "nFullSize must be divisible by nWarpSize");
+  constexpr int32_t nSize = nFullSize / nWarpSize;
+  static_assert(nSize % 2 == 0,
+                "nSize must be a power of 2 (this just checks even though)");
+  half x[nSize];
+  int32_t i0 = threadIdx.x * nSize;
+#pragma unroll
+  for (int32_t i = 0; i < nSize; i++) {
+    int32_t j = i ^ threadIdx.x;
+    x[j] = input_x[i0 + j];
+  }
+
+  hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
+
+  int32_t i0_out = i0 / 2;
+
+#pragma unroll
+  for (int32_t i = 0; i < nSize / 2; i++) {
+    int32_t j = (i ^ threadIdx.x);
+    output[i0 + j] =
+        comb_int4s(float16_to_int4(x[j * 2]), float16_to_int4(x[j * 2 + 1]));
   }
 }
 
