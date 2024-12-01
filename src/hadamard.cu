@@ -73,10 +73,11 @@ __device__ void warp_shuffle_hadamard(ty x[nSize]) {
 template <int nSize, int nThreads, int nWarpSize, typename ty>
 __device__ void interwarp_transpose(ty x[nSize], ty *shmem) {
   constexpr int32_t nWarps = nThreads / nWarpSize;
-  int32_t thread_id = threadIdx.x % nWarpSize;
-  int32_t warp_id = threadIdx.x / nWarpSize;
-  int32_t transposed_thread_id = threadIdx.x / nWarps;
-  int32_t transposed_warp_id = threadIdx.x % nWarps;
+  int32_t thread_idx = threadIdx.x % nThreads;
+  int32_t thread_id = thread_idx % nWarpSize;
+  int32_t warp_id = thread_idx / nWarpSize;
+  int32_t transposed_thread_id = thread_idx / nWarps;
+  int32_t transposed_warp_id = thread_idx % nWarps;
 #define index_of(i, thread, warp) (i * nThreads + warp * nWarpSize + thread)
 
   for (int32_t i = 0; i < nSize; i++) {
@@ -137,17 +138,14 @@ __device__ char comb_int4s(char i41, char i42) { return (i41 << 4) + i42; }
 
 template <int nFullSize, int nWarpSize>
 __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
-  if (threadIdx.x >= nWarpSize) {
-    // multi-warp not yet supported
-    return;
-  }
   static_assert(nFullSize % nWarpSize == 0,
                 "nFullSize must be divisible by nWarpSize");
   constexpr int32_t nSize = nFullSize / nWarpSize;
   static_assert(nSize % 2 == 0,
                 "nSize must be a power of 2 (this just checks even though)");
   half x[nSize];
-  int32_t i0 = threadIdx.x * nSize;
+  int32_t thread_idx = threadIdx.x % nWarpSize;
+  int32_t i0 = thread_idx * nSize;
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
     int32_t j = i ^ threadIdx.x;
@@ -160,7 +158,7 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
 
 #pragma unroll
   for (int32_t i = 0; i < nSize / 2; i++) {
-    int32_t j = (i ^ threadIdx.x);
+    int32_t j = (i ^ thread_idx);
     output[i0 + j] =
         comb_int4s(float16_to_int4(x[j * 2]), float16_to_int4(x[j * 2 + 1]));
   }
