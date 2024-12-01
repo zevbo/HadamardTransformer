@@ -31,14 +31,15 @@ dims gridDim = {};
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
   for (int32_t exchange = 1; exchange < nSize; exchange *= 2) {
-    int32_t group_size = exchange << 1;
+    int32_t group_size = exchange * 2;
 #pragma unroll
-    for (int32_t group = 0; group < nSize; group += group_size) {
-      int32_t group_i0 = group * group_size;
+    for (int32_t group_i0 = 0; group_i0 < nSize; group_i0 += group_size) {
 #pragma unroll
       for (int32_t i = 0; i < exchange; i++) {
         int32_t i0 = group_i0 + i;
         int32_t i1 = i0 + exchange;
+        assert(i0 < nSize);
+        assert(i1 < nSize);
         ty a = x[i0];
         ty b = x[i1];
         x[i0] = a + b;
@@ -146,7 +147,7 @@ torch::Tensor hadamard_transform_f32_1024(torch::Tensor x) {
   TORCH_CHECK(x.scalar_type() == torch::kFloat, "Must be f32");
   auto out = torch::empty_like(x);
   hadamard_transform_from_global<1024, 32, float>
-      <<<1, 32>>>(x.data_ptr<float>(), out.data_ptr<float>());
+      <<<1, 32, 1024 * 48>>>(x.data_ptr<float>(), out.data_ptr<float>());
   return out;
 }
 
