@@ -148,7 +148,7 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
   int32_t i0 = thread_idx * nSize;
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
-    int32_t j = i ^ threadIdx.x;
+    int32_t j = i ^ thread_idx;
     x[j] = input_x[i0 + j];
   }
 
