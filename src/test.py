@@ -13,10 +13,15 @@ def test_hadamard():
     # Create test tensors
     x = torch.randn(1024, device="cuda", dtype=torch.float32)
 
+    for i in range(0, 1024):
+        break
+        if i >= 32 != 0:
+            x[i] = 0
+
     s = 0
     for i in range(32):
-        s += x[i * 32]
-        print(f"{x[i * 32]}, ", end="")
+        s += x[i]
+        print(f"{x[i]}, ", end="")
 
     print(f"\n{s = }")
 
@@ -24,10 +29,12 @@ def test_hadamard():
     print(f"{x = }")
     H = scipy_hadamard(1024)
     correct = np.dot(H, x.cpu().numpy())
-    print(f"{correct[0] = }")
     c = hadamard_cuda.hadamard_transform_f32_1024(x)
-    print(f"{c[0] = }")
-    print(f"{c[32] = }")
+    for i in range(32):
+        print(f"{i}: {c[i] = }, {correct[i] = }")
+
+    for i in range(32):
+        print(f"{i}: {c[i * 32] = }, {correct[i * 32] = }")
 
     # Verify results (assuming hadamard is element-wise multiplication)
     # expected = a * b
