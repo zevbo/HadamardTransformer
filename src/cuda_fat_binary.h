@@ -1,8 +1,11 @@
+
+
+#ifndef __CUDACC__ // If we're not compiling with nvcc or CUDA isn't available
 /*!
     \file cudaFatBinary.h
     \author Andrew Kerr <arkerr@gatech.edu>
-    \brief this was extracted from cuda_runtime.h as these structures are shared by
-        both the CUDA Runtime API and Driver APIs
+    \brief this was extracted from cuda_runtime.h as these structures are shared
+   by both the CUDA Runtime API and Driver APIs
 */
 
 #ifndef OCELOT_CUDA_CUDAFATBINARY_H_INCLUDED
@@ -20,8 +23,8 @@
  * compatible load image, or attempt a recompilation.
  */
 typedef struct {
-    char *gpuProfileName;
-    char *cubin;
+  char *gpuProfileName;
+  char *cubin;
 } __cudaFatCubinEntry;
 
 /*
@@ -35,8 +38,8 @@ typedef struct {
  * translator can provide an emulation.
  */
 typedef struct {
-    char *gpuProfileName;
-    char *ptx;
+  char *gpuProfileName;
+  char *ptx;
 } __cudaFatPtxEntry;
 
 /*
@@ -46,23 +49,23 @@ typedef struct {
  * will contain their own debugging information)
  */
 typedef struct __cudaFatDebugEntryRec {
-    char *gpuProfileName;
-    char *debug;
-    struct __cudaFatDebugEntryRec *next;
-    unsigned int size;
+  char *gpuProfileName;
+  char *debug;
+  struct __cudaFatDebugEntryRec *next;
+  unsigned int size;
 } __cudaFatDebugEntry;
 
 typedef struct __cudaFatElfEntryRec {
-    char *gpuProfileName;
-    char *elf;
-    struct __cudaFatElfEntryRec *next;
-    unsigned int size;
+  char *gpuProfileName;
+  char *elf;
+  struct __cudaFatElfEntryRec *next;
+  unsigned int size;
 } __cudaFatElfEntry;
 
 typedef enum {
-    __cudaFatDontSearchFlag = (1 << 0),
-    __cudaFatDontCacheFlag = (1 << 1),
-    __cudaFatSassDebugFlag = (1 << 2)
+  __cudaFatDontSearchFlag = (1 << 0),
+  __cudaFatDontCacheFlag = (1 << 1),
+  __cudaFatSassDebugFlag = (1 << 2)
 } __cudaFatCudaBinaryFlag;
 
 /*
@@ -72,7 +75,7 @@ typedef enum {
  * is contained by the binaries.
  */
 typedef struct {
-    char *name;
+  char *name;
 } __cudaFatSymbol;
 
 /*
@@ -86,58 +89,58 @@ typedef struct {
  */
 
 typedef struct __cudaFatCudaBinaryRec {
-    unsigned long magic;
-    unsigned long version;
-    unsigned long gpuInfoVersion;
-    char *key;
-    char *ident;
-    char *usageMode;
-    __cudaFatPtxEntry *ptx;
-    __cudaFatCubinEntry *cubin;
-    __cudaFatDebugEntry *debug;
-    void *debugInfo;
-    unsigned int flags;
-    __cudaFatSymbol *exported;
-    __cudaFatSymbol *imported;
-    struct __cudaFatCudaBinaryRec *dependends;
-    unsigned int characteristic;
-    __cudaFatElfEntry *elf;
+  unsigned long magic;
+  unsigned long version;
+  unsigned long gpuInfoVersion;
+  char *key;
+  char *ident;
+  char *usageMode;
+  __cudaFatPtxEntry *ptx;
+  __cudaFatCubinEntry *cubin;
+  __cudaFatDebugEntry *debug;
+  void *debugInfo;
+  unsigned int flags;
+  __cudaFatSymbol *exported;
+  __cudaFatSymbol *imported;
+  struct __cudaFatCudaBinaryRec *dependends;
+  unsigned int characteristic;
+  __cudaFatElfEntry *elf;
 } __cudaFatCudaBinary;
 
 typedef struct __cudaFatCudaBinary2HeaderRec {
-    unsigned int magic;
-    unsigned int version;
-    unsigned long long int length;
+  unsigned int magic;
+  unsigned int version;
+  unsigned long long int length;
 } __cudaFatCudaBinary2Header;
 
 enum FatBin2EntryType {
-    FATBIN_2_PTX = 0x1,
-    FATBIN_2_ELF = 0x2,
-    FATBIN_2_OLDCUBIN = 0x4
+  FATBIN_2_PTX = 0x1,
+  FATBIN_2_ELF = 0x2,
+  FATBIN_2_OLDCUBIN = 0x4
 };
 
 typedef struct __cudaFatCudaBinary2EntryRec {
-    unsigned int type;
-    unsigned int binary;
-    unsigned long long int binarySize;
-    unsigned int unknown2;
-    unsigned int kindOffset;
-    unsigned int unknown3;
-    unsigned int unknown4;
-    unsigned int name;
-    unsigned int nameSize;
-    unsigned long long int flags;
-    unsigned long long int unknown7;
-    unsigned long long int uncompressedBinarySize;
+  unsigned int type;
+  unsigned int binary;
+  unsigned long long int binarySize;
+  unsigned int unknown2;
+  unsigned int kindOffset;
+  unsigned int unknown3;
+  unsigned int unknown4;
+  unsigned int name;
+  unsigned int nameSize;
+  unsigned long long int flags;
+  unsigned long long int unknown7;
+  unsigned long long int uncompressedBinarySize;
 } __cudaFatCudaBinary2Entry;
 
 #define COMPRESSED_PTX 0x0000000000001000LL
 
 typedef struct __cudaFatCudaBinaryRec2 {
-    int magic;
-    int version;
-    const unsigned long long *fatbinData;
-    char *f;
+  int magic;
+  int version;
+  const unsigned long long *fatbinData;
+  char *f;
 } __cudaFatCudaBinary2;
 
 /*
@@ -159,9 +162,10 @@ typedef struct __cudaFatCudaBinaryRec2 {
 /*--------------------------------- Functions --------------------------------*/
 
 typedef enum {
-    __cudaFatAvoidPTX,
-    __cudaFatPreferBestCode,
-    __cudaFatForcePTX
+  __cudaFatAvoidPTX,
+  __cudaFatPreferBestCode,
+  __cudaFatForcePTX
 } __cudaFatCompilationPolicy;
 
+#endif
 #endif
