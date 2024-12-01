@@ -1,0 +1,3 @@
+[submodule "QuaRot"]
+	path = QuaRot
+	url = git@github.com:ma-chengyuan/QuaRot.git
