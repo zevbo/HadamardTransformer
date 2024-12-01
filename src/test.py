@@ -28,14 +28,11 @@ def test_hadamard():
     # Call your CUDA function
     print(f"{x = }")
     H = scipy_hadamard(1024)
-    correct = np.dot(H, x.cpu().numpy())
+    correct = torch.tensor(np.dot(H, x.cpu().numpy())).to(torch.float32)
+
     c = hadamard_cuda.hadamard_transform_f32_1024(x)
-    for i in range(32):
-        print(f"{i}: {c[i] = }, {correct[i] = }")
 
-    for i in range(32):
-        print(f"{i}: {c[i * 32] = }, {correct[i * 32] = }")
-
+    assert torch.allclose(c, torch.tensor(correct).to("cuda"), atol=0.01)
     # Verify results (assuming hadamard is element-wise multiplication)
     # expected = a * b
     # assert torch.allclose(c, expected)
