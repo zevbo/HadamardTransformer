@@ -159,7 +159,7 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
 #pragma unroll
   for (int32_t i = 0; i < nSize / 2; i++) {
     int32_t j = (i ^ thread_idx);
-    output[i0 + j] =
+    output[i0_out + j] =
         comb_int4s(float16_to_int4(x[j * 2]), float16_to_int4(x[j * 2 + 1]));
   }
 }
