@@ -24,6 +24,7 @@ def test_hadamard():
 
 def test_hadamard_multi(rows):
     # Create test tensors
+    print(f"Testing hadamard with {rows} rows")
     x = torch.randn((1024, rows), device="cuda", dtype=torch.float32)
 
     H = scipy_hadamard(1024)
@@ -31,10 +32,13 @@ def test_hadamard_multi(rows):
 
     c = hadamard_cuda.hadamard_transform_f32_1024(x.T, rows)
 
+    print(f"{c[0,0] = }, {correct[0, 0] = }")
+
     assert torch.allclose(c, torch.tensor(correct).to("cuda"), atol=0.01)
     print("Test passed!")
 
 
 if __name__ == "__main__":
+    # test_hadamard()
     test_hadamard_multi(1)
     test_hadamard_multi(2)

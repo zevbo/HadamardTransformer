@@ -181,8 +181,11 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
 torch::Tensor hadamard_transform_f32_1024(torch::Tensor x, int rows) {
   TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
   TORCH_CHECK(x.scalar_type() == torch::kFloat, "Must be f32");
-  TORCH_CHECK(x.
   auto out = torch::empty_like(x);
+  int32_t rows_ = x.size(0);
+  int32_t cols = x.size(1);
+  printf("Rows, cols: %d, %d\n", rows, cols);
+  fflush(stdout);
   hadamard_transform_from_global<1024, 32, float>
       <<<rows, 32, 1024 * 48>>>(x.data_ptr<float>(), out.data_ptr<float>());
   return out;
