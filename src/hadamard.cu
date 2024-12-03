@@ -162,12 +162,18 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
 
 template <int nFullSize, int nWarpSize, typename ty>
 __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
+  if (blockIdx.x > 0) {
+    return;
+  }
   const ty *block_x = x + nFullSize * blockIdx.x;
   ty *block_out = out + nFullSize * blockIdx.x;
   extern __shared__ float shmem[];
   ty *shmem_x = (ty *)shmem;
 
   for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
+    if (blockIdx.x == 1) {
+      // assert(block_x[i] == 0);
+    }
     shmem_x[i] = block_x[i];
   }
 
@@ -184,7 +190,7 @@ torch::Tensor hadamard_transform_f32_1024(torch::Tensor x, int rows) {
   auto out = torch::empty_like(x);
   int32_t rows_ = x.size(0);
   int32_t cols = x.size(1);
-  printf("Rows, cols: %d, %d\n", rows, cols);
+  printf("Rows, cols: %d, %d\n", rows_, cols);
   fflush(stdout);
   hadamard_transform_from_global<1024, 32, float>
       <<<rows, 32, 1024 * 48>>>(x.data_ptr<float>(), out.data_ptr<float>());
