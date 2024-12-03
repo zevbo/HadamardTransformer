@@ -27,13 +27,6 @@ def test_hadamard_multi(rows):
     print(f"Testing hadamard with {rows} rows")
     x = torch.randn((rows, 1024), device="cuda", dtype=torch.float32)
 
-    for i in range(1024):
-        for r in range(1, rows):
-            x[r, i] = 0
-
-    for i in range(1024, 1024):
-        x[0, i] = 0
-
     H = scipy_hadamard(1024)
     correct = torch.tensor(np.dot(H, x.cpu().numpy().T)).to(torch.float32)
 

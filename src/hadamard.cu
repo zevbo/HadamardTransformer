@@ -162,18 +162,12 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
 
 template <int nFullSize, int nWarpSize, typename ty>
 __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
-  if (blockIdx.x > 0) {
-    return;
-  }
   const ty *block_x = x + nFullSize * blockIdx.x;
   ty *block_out = out + nFullSize * blockIdx.x;
   extern __shared__ float shmem[];
   ty *shmem_x = (ty *)shmem;
 
   for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
-    if (blockIdx.x == 1) {
-      // assert(block_x[i] == 0);
-    }
     shmem_x[i] = block_x[i];
   }
 
