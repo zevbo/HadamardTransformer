@@ -104,10 +104,6 @@ __device__ void hadamard_transform(ty x[nSize], ty *shmem) {
 
 template <int nFullSize, int nWarpSize, typename ty>
 __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
-  if (threadIdx.x >= nWarpSize) {
-    // multi-warp not yet supported
-    return;
-  }
   static_assert(nFullSize % nWarpSize == 0,
                 "nFullSize must be divisible by nWarpSize");
   constexpr int32_t nSize = nFullSize / nWarpSize;
@@ -115,7 +111,7 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
   int32_t i0 = threadIdx.x * nSize;
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
-    int32_t j = i ^ threadIdx.x;
+    int32_t j = i; // ^ threadIdx.x;
     x[j] = shmem_x[i0 + j];
   }
 
@@ -123,7 +119,7 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
 
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
-    int32_t j = i ^ threadIdx.x;
+    int32_t j = i; // ^ threadIdx.x;
     shmem_x[i0 + j] = x[j];
   }
 }
@@ -148,7 +144,7 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
   int32_t i0 = thread_idx * nSize;
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
-    int32_t j = i ^ thread_idx;
+    int32_t j = i; // ^ thread_idx;
     x[j] = input_x[i0 + j];
   }
 
@@ -158,7 +154,7 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
 
 #pragma unroll
   for (int32_t i = 0; i < nSize / 2; i++) {
-    int32_t j = (i ^ thread_idx);
+    int32_t j = i; // ^ thread_idx);
     output[i0_out + j] =
         comb_int4s(float16_to_int4(x[j * 2]), float16_to_int4(x[j * 2 + 1]));
   }
@@ -182,12 +178,13 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
   }
 }
 
-torch::Tensor hadamard_transform_f32_1024(torch::Tensor x) {
+torch::Tensor hadamard_transform_f32_1024(torch::Tensor x, int rows) {
   TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
   TORCH_CHECK(x.scalar_type() == torch::kFloat, "Must be f32");
+  TORCH_CHECK(x.
   auto out = torch::empty_like(x);
   hadamard_transform_from_global<1024, 32, float>
-      <<<1, 32, 1024 * 48>>>(x.data_ptr<float>(), out.data_ptr<float>());
+      <<<rows, 32, 1024 * 48>>>(x.data_ptr<float>(), out.data_ptr<float>());
   return out;
 }
 
