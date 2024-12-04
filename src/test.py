@@ -62,7 +62,7 @@ def test_hadamard_multi(size, rows):
 if __name__ == "__main__":
     print("B")
     # test_hadamard()
-    size = 2048
+    size = 1024
     with torch.no_grad():
         test_hadamard_multi(size, 1)
         test_hadamard_multi(size, 2)

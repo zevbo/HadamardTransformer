@@ -182,7 +182,7 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
 
   __syncthreads();
 
-  // hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
+  hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
 
   __syncthreads();
 
