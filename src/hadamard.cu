@@ -181,7 +181,7 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
 
   __syncthreads();
 
-  hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
+  // hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
 
   __syncthreads();
 
@@ -198,23 +198,30 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
   // }
 }
 
-torch::Tensor hadamard_transform_f32_1024(torch::Tensor x, int rows) {
+template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
   TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
   TORCH_CHECK(x.scalar_type() == torch::kFloat, "Must be f32");
   auto out = torch::empty_like(x);
-  int32_t rows_ = x.size(0);
-  int32_t cols = x.size(1);
-  printf("Rows, cols: %d, %d\n", rows_, cols);
+  int32_t rows = x.size(0);
+  printf("Rows, nFullSize: %d, %d\n", rows, nFullSize);
   fflush(stdout);
 
   // auto t1 = std::chrono::high_resolution_clock::now();
-  hadamard_transform_from_global<1024, 32, float>
-      <<<rows, 32, 1024 * 4>>>(x.data_ptr<float>(), out.data_ptr<float>());
+  hadamard_transform_from_global<nFullSize, 32, float>
+      <<<rows, 32, nFullSize * sizeof(float)>>>(x.data_ptr<float>(),
+                                                out.data_ptr<float>());
   cudaDeviceSynchronize();
   // auto t2 = std::chrono::high_resolution_clock::now();
   return out;
 }
 
+torch::Tensor hadamard_transform_f32_512(torch::Tensor x) {
+  return hadamard_transform_f32<512>(x);
+}
+
+torch::Tensor hadamard_transform_f32_1024(torch::Tensor x) {
+  return hadamard_transform_f32<1024>(x);
+}
 int main() {
   printf("Hello World!\n");
   return 0;

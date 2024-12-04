@@ -23,16 +23,22 @@ def test_hadamard():
     print("Test passed!")
 
 
-def test_hadamard_multi(rows):
+size_to_f = {
+    512: hadamard_cuda.hadamard_transform_f32_512,
+    1024: hadamard_cuda.hadamard_transform_f32_1024,
+}
+
+
+def test_hadamard_multi(size, rows):
     # Create test tensors
     print(f"Testing hadamard with {rows} rows")
-    x = torch.randn((rows, 1024), device="cuda", dtype=torch.float32)
+    x = torch.randn((rows, size), device="cuda", dtype=torch.float32)
 
-    H = scipy_hadamard(1024)
+    H = scipy_hadamard(size)
     correct = torch.tensor(np.dot(H, x.cpu().numpy().T)).to(torch.float32)
 
     t1 = time.perf_counter_ns()
-    c = hadamard_cuda.hadamard_transform_f32_1024(x, rows)
+    c = size_to_f[size](x)
     t2 = time.perf_counter_ns()
     c = c.T
     print(f"{c.shape = }, {correct.shape = }")
@@ -56,12 +62,13 @@ def test_hadamard_multi(rows):
 if __name__ == "__main__":
     print("B")
     # test_hadamard()
+    size = 1024
     with torch.no_grad():
-        test_hadamard_multi(1)
-        test_hadamard_multi(2)
-        test_hadamard_multi(128)
-        test_hadamard_multi(1024)
-        test_hadamard_multi(1024 * 16)
-        test_hadamard_multi(1024 * 32)
-        test_hadamard_multi(1024 * 64)
-        test_hadamard_multi(1024 * 128)
+        test_hadamard_multi(size, 1)
+        test_hadamard_multi(size, 2)
+        test_hadamard_multi(size, 128)
+        test_hadamard_multi(size, 1024)
+        test_hadamard_multi(size, 1024 * 16)
+        test_hadamard_multi(size, 1024 * 32)
+        test_hadamard_multi(size, 1024 * 64)
+        test_hadamard_multi(size, 1024 * 128)
