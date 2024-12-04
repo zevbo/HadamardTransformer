@@ -31,15 +31,22 @@ def test_hadamard_multi(rows):
     H = scipy_hadamard(1024)
     correct = torch.tensor(np.dot(H, x.cpu().numpy().T)).to(torch.float32)
 
-    c = hadamard_cuda.hadamard_transform_f32_1024(x, rows)
     t1 = time.perf_counter_ns()
     c = hadamard_cuda.hadamard_transform_f32_1024(x, rows)
     t2 = time.perf_counter_ns()
     c = c.T
+    print(f"{c.shape = }, {correct.shape = }")
+    for i in range(4):
+        print(f"{i = }: {c[i,0] = }, {correct[i,0] = }")
 
-    # assert torch.allclose(c, torch.tensor(correct).to("cuda"), atol=0.01)
+    assert torch.allclose(c, torch.tensor(correct).to("cuda"), atol=0.01)
+
+    ideal_t = x.numel() * 2 * 4 * 1000 / (448 * 1024 * 1024 * 1024)
+    total_time = (t2 - t1) / (1000 * 1000)
+    slowdown = total_time / ideal_t
+
     print(
-        f"Test passed! Took {(t2 - t1) / (1000 * 1000)} ms. Memory load would be {x.numel() * 2 * 4 * 1000 / (448 * 1024 * 1024 * 1024)}"
+        f"Test passed! Took {total_time} ms, which is a slowdown of {round(slowdown, 2)}"
     )
 
 

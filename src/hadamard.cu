@@ -172,7 +172,7 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
 
 #pragma unroll
   for (int32_t i = 0; i < nPortion; i++) {
-    load_registers[i] = block_x[i + i * blockDim.x];
+    load_registers[i] = block_x[threadIdx.x + i * blockDim.x];
   }
 #pragma unroll
   for (int32_t i = 0; i < nPortion; i++) {
@@ -181,13 +181,13 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
 
   __syncthreads();
 
-  // hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
+  hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
 
   __syncthreads();
 
 #pragma unroll
   for (int32_t i = 0; i < nPortion; i++) {
-    load_registers[i] = shmem_x[i + i * blockDim.x];
+    load_registers[i] = shmem_x[threadIdx.x + i * blockDim.x];
   }
 #pragma unroll
   for (int32_t i = 0; i < nPortion; i++) {
