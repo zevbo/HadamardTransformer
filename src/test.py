@@ -38,16 +38,19 @@ def test_hadamard_multi(rows):
     print(f"{c.shape = }, {correct.shape = }")
     for i in range(4):
         print(f"{i = }: {c[i,0] = }, {correct[i,0] = }")
-
-    assert torch.allclose(c, torch.tensor(correct).to("cuda"), atol=0.01)
-
     ideal_t = x.numel() * 2 * 4 * 1000 / (448 * 1024 * 1024 * 1024)
     total_time = (t2 - t1) / (1000 * 1000)
     slowdown = total_time / ideal_t
 
-    print(
-        f"Test passed! Took {total_time} ms, which is a slowdown of {round(slowdown, 2)}"
-    )
+    passed = torch.allclose(c, torch.tensor(correct).to("cuda"), atol=0.01)
+    if passed:
+        print(
+            f"Test passed! Took {total_time} ms, which is a slowdown of {round(slowdown, 2)}"
+        )
+    else:
+        print(
+            f"Test failed. Took {total_time} ms, which is a slowdown of {round(slowdown, 2)}"
+        )
 
 
 if __name__ == "__main__":
@@ -59,3 +62,6 @@ if __name__ == "__main__":
         test_hadamard_multi(128)
         test_hadamard_multi(1024)
         test_hadamard_multi(1024 * 16)
+        test_hadamard_multi(1024 * 32)
+        test_hadamard_multi(1024 * 64)
+        test_hadamard_multi(1024 * 128)

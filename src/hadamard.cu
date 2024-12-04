@@ -172,11 +172,11 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
 
 #pragma unroll
   for (int32_t i = 0; i < nPortion; i++) {
-    load_registers[i] = block_x[threadIdx.x + i * blockDim.x];
+    load_registers[i] = block_x[threadIdx.x + i * nWarpSize];
   }
 #pragma unroll
   for (int32_t i = 0; i < nPortion; i++) {
-    shmem_x[threadIdx.x + i * blockDim.x] = load_registers[i];
+    shmem_x[threadIdx.x + i * nWarpSize] = load_registers[i];
   }
 
   __syncthreads();
@@ -187,11 +187,11 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
 
 #pragma unroll
   for (int32_t i = 0; i < nPortion; i++) {
-    load_registers[i] = shmem_x[threadIdx.x + i * blockDim.x];
+    load_registers[i] = shmem_x[threadIdx.x + i * nWarpSize];
   }
 #pragma unroll
   for (int32_t i = 0; i < nPortion; i++) {
-    block_out[threadIdx.x + i * blockDim.x] = load_registers[i];
+    block_out[threadIdx.x + i * nWarpSize] = load_registers[i];
   }
   // for (int32_t i = threadIdx.x; i < nFullSize; i += nWarpSize) {
   //  block_out[i] = shmem_x[i];
@@ -210,6 +210,7 @@ torch::Tensor hadamard_transform_f32_1024(torch::Tensor x, int rows) {
   // auto t1 = std::chrono::high_resolution_clock::now();
   hadamard_transform_from_global<1024, 32, float>
       <<<rows, 32, 1024 * 4>>>(x.data_ptr<float>(), out.data_ptr<float>());
+  cudaDeviceSynchronize();
   // auto t2 = std::chrono::high_resolution_clock::now();
   return out;
 }
