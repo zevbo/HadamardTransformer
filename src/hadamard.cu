@@ -194,9 +194,6 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
   for (int32_t i = 0; i < nPortion; i++) {
     block_out[threadIdx.x + i * nWarpSize] = load_registers[i];
   }
-  // for (int32_t i = threadIdx.x; i < nFullSize; i += nWarpSize) {
-  //  block_out[i] = shmem_x[i];
-  // }
 }
 
 template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
@@ -215,9 +212,8 @@ template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
   auto t2 = std::chrono::high_resolution_clock::now();
   auto us =
       std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-  long unsigned int expected_us =
-      ((uint64_t)rows) * ((uint64_t)nFullSize) * 2 * 4 * 1000 * 1000 /
-      (448 * 1024 * 1024); // / (448 * 1024 * 1024 * 1024);
+  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)nFullSize) * 2 *
+                                  4 * 1000 * 1000 / (448 * 1024 * 1024);
   expected_us /= 1024;
   float slowdown = (float)us / expected_us;
   printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
@@ -233,6 +229,14 @@ torch::Tensor hadamard_transform_f32_512(torch::Tensor x) {
 torch::Tensor hadamard_transform_f32_1024(torch::Tensor x) {
   return hadamard_transform_f32<1024>(x);
 }
+torch::Tensor hadamard_transform_f32_2048(torch::Tensor x) {
+  return hadamard_transform_f32<2048>(x);
+}
+
+torch::Tensor hadamard_transform_f32_32768(torch::Tensor x) {
+  return hadamard_transform_f32<32768>(x);
+}
+
 int main() {
   printf("Hello World!\n");
   return 0;
