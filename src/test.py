@@ -41,9 +41,9 @@ def test_hadamard_multi(size, rows):
     c = size_to_f[size](x)
     t2 = time.perf_counter_ns()
     c = c.T
-    print(f"{c.shape = }, {correct.shape = }")
-    for i in range(4):
-        print(f"{i = }: {c[i,0] = }, {correct[i,0] = }")
+    # print(f"{c.shape = }, {correct.shape = }")
+    # for i in range(4):
+    #    print(f"{i = }: {c[i,0] = }, {correct[i,0] = }")
     ideal_t = x.numel() * 2 * 4 * 1000 / (448 * 1024 * 1024 * 1024)
     total_time = (t2 - t1) / (1000 * 1000)
     slowdown = total_time / ideal_t

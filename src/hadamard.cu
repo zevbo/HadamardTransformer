@@ -1,6 +1,7 @@
 #ifndef __CUDACC__ // If we're not compiling with nvcc or CUDA isn't available
 #define __shared__
 // #include <thread>
+#include <chrono>
 #include <ctime>
 #define __global__
 #define __device__
@@ -206,12 +207,22 @@ template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
   printf("Rows, nFullSize: %d, %d\n", rows, nFullSize);
   fflush(stdout);
 
-  // auto t1 = std::chrono::high_resolution_clock::now();
+  auto t1 = std::chrono::high_resolution_clock::now();
   hadamard_transform_from_global<nFullSize, 32, float>
       <<<rows, 32, nFullSize * sizeof(float)>>>(x.data_ptr<float>(),
                                                 out.data_ptr<float>());
   cudaDeviceSynchronize();
-  // auto t2 = std::chrono::high_resolution_clock::now();
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto us =
+      std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+  long unsigned int expected_us =
+      ((uint64_t)rows) * ((uint64_t)nFullSize) * 2 * 4 * 1000 * 1000 /
+      (448 * 1024 * 1024); // / (448 * 1024 * 1024 * 1024);
+  expected_us /= 1024;
+  float slowdown = (float)us / expected_us;
+  printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
+         slowdown); //,
+  //         (float)us / expected_us);
   return out;
 }
 
