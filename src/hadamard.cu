@@ -185,9 +185,17 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
 
   __syncthreads();
 
-  for (int32_t i = threadIdx.x; i < nFullSize; i += nWarpSize) {
-    block_out[i] = shmem_x[i];
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    load_registers[i] = shmem_x[i + i * blockDim.x];
   }
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    block_out[threadIdx.x + i * blockDim.x] = load_registers[i];
+  }
+  // for (int32_t i = threadIdx.x; i < nFullSize; i += nWarpSize) {
+  //  block_out[i] = shmem_x[i];
+  // }
 }
 
 torch::Tensor hadamard_transform_f32_1024(torch::Tensor x, int rows) {

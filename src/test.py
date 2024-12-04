@@ -31,6 +31,7 @@ def test_hadamard_multi(rows):
     H = scipy_hadamard(1024)
     correct = torch.tensor(np.dot(H, x.cpu().numpy().T)).to(torch.float32)
 
+    c = hadamard_cuda.hadamard_transform_f32_1024(x, rows)
     t1 = time.perf_counter_ns()
     c = hadamard_cuda.hadamard_transform_f32_1024(x, rows)
     t2 = time.perf_counter_ns()
@@ -50,3 +51,4 @@ if __name__ == "__main__":
         test_hadamard_multi(2)
         test_hadamard_multi(128)
         test_hadamard_multi(1024)
+        test_hadamard_multi(1024 * 16)
