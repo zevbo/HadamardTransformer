@@ -167,13 +167,25 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
   extern __shared__ float shmem[];
   ty *shmem_x = (ty *)shmem;
 
-  for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
-    shmem_x[i] = block_x[i];
+  constexpr int32_t nPortion = nFullSize / nWarpSize;
+  ty load_registers[nPortion];
+
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    load_registers[i] = block_x[i + i * blockDim.x];
+  }
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    shmem_x[threadIdx.x + i * blockDim.x] = load_registers[i];
   }
 
-  hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
+  __syncthreads();
 
-  for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
+  // hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
+
+  __syncthreads();
+
+  for (int32_t i = threadIdx.x; i < nFullSize; i += nWarpSize) {
     block_out[i] = shmem_x[i];
   }
 }
@@ -186,8 +198,11 @@ torch::Tensor hadamard_transform_f32_1024(torch::Tensor x, int rows) {
   int32_t cols = x.size(1);
   printf("Rows, cols: %d, %d\n", rows_, cols);
   fflush(stdout);
+
+  // auto t1 = std::chrono::high_resolution_clock::now();
   hadamard_transform_from_global<1024, 32, float>
-      <<<rows, 32, 1024 * 48>>>(x.data_ptr<float>(), out.data_ptr<float>());
+      <<<rows, 32, 1024 * 4>>>(x.data_ptr<float>(), out.data_ptr<float>());
+  // auto t2 = std::chrono::high_resolution_clock::now();
   return out;
 }
 
