@@ -1,6 +1,7 @@
 #ifndef __CUDACC__ // If we're not compiling with nvcc or CUDA isn't available
 #define __shared__
 // #include <thread>
+#include <chrono>
 #include <ctime>
 #define __global__
 #define __device__
@@ -104,10 +105,6 @@ __device__ void hadamard_transform(ty x[nSize], ty *shmem) {
 
 template <int nFullSize, int nWarpSize, typename ty>
 __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
-  if (threadIdx.x >= nWarpSize) {
-    // multi-warp not yet supported
-    return;
-  }
   static_assert(nFullSize % nWarpSize == 0,
                 "nFullSize must be divisible by nWarpSize");
   constexpr int32_t nSize = nFullSize / nWarpSize;
@@ -115,7 +112,7 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
   int32_t i0 = threadIdx.x * nSize;
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
-    int32_t j = i ^ threadIdx.x;
+    int32_t j = i; // ^ threadIdx.x;
     x[j] = shmem_x[i0 + j];
   }
 
@@ -123,7 +120,7 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
 
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
-    int32_t j = i ^ threadIdx.x;
+    int32_t j = i; // ^ threadIdx.x;
     shmem_x[i0 + j] = x[j];
   }
 }
@@ -148,7 +145,7 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
   int32_t i0 = thread_idx * nSize;
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
-    int32_t j = i ^ thread_idx;
+    int32_t j = i; // ^ thread_idx;
     x[j] = input_x[i0 + j];
   }
 
@@ -158,7 +155,7 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
 
 #pragma unroll
   for (int32_t i = 0; i < nSize / 2; i++) {
-    int32_t j = (i ^ thread_idx);
+    int32_t j = i; // ^ thread_idx);
     output[i0_out + j] =
         comb_int4s(float16_to_int4(x[j * 2]), float16_to_int4(x[j * 2 + 1]));
   }
@@ -171,24 +168,73 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
   extern __shared__ float shmem[];
   ty *shmem_x = (ty *)shmem;
 
-  for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
-    shmem_x[i] = block_x[i];
+  constexpr int32_t nPortion = nFullSize / nWarpSize;
+  ty load_registers[nPortion];
+
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    load_registers[i] = block_x[threadIdx.x + i * nWarpSize];
   }
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    shmem_x[threadIdx.x + i * nWarpSize] = load_registers[i];
+  }
+
+  __syncthreads();
 
   hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
 
-  for (int32_t i = threadIdx.x; i < nFullSize; i += blockDim.x) {
-    block_out[i] = shmem_x[i];
+  __syncthreads();
+
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    load_registers[i] = shmem_x[threadIdx.x + i * nWarpSize];
+  }
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    block_out[threadIdx.x + i * nWarpSize] = load_registers[i];
   }
 }
 
-torch::Tensor hadamard_transform_f32_1024(torch::Tensor x) {
+template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
   TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
   TORCH_CHECK(x.scalar_type() == torch::kFloat, "Must be f32");
   auto out = torch::empty_like(x);
-  hadamard_transform_from_global<1024, 32, float>
-      <<<1, 32, 1024 * 48>>>(x.data_ptr<float>(), out.data_ptr<float>());
+  int32_t rows = x.size(0);
+  printf("Rows, nFullSize: %d, %d\n", rows, nFullSize);
+  fflush(stdout);
+
+  auto t1 = std::chrono::high_resolution_clock::now();
+  hadamard_transform_from_global<nFullSize, 32, float>
+      <<<rows, 32, nFullSize * sizeof(float)>>>(x.data_ptr<float>(),
+                                                out.data_ptr<float>());
+  cudaDeviceSynchronize();
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto us =
+      std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)nFullSize) * 2 *
+                                  4 * 1000 * 1000 / (448 * 1024 * 1024);
+  expected_us /= 1024;
+  float slowdown = (float)us / expected_us;
+  printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
+         slowdown); //,
+  //         (float)us / expected_us);
   return out;
+}
+
+torch::Tensor hadamard_transform_f32_512(torch::Tensor x) {
+  return hadamard_transform_f32<512>(x);
+}
+
+torch::Tensor hadamard_transform_f32_1024(torch::Tensor x) {
+  return hadamard_transform_f32<1024>(x);
+}
+torch::Tensor hadamard_transform_f32_2048(torch::Tensor x) {
+  return hadamard_transform_f32<2048>(x);
+}
+
+torch::Tensor hadamard_transform_f32_32768(torch::Tensor x) {
+  return hadamard_transform_f32<32768>(x);
 }
 
 int main() {
