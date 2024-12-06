@@ -62,10 +62,10 @@ def test_hadamard_multi(size, rows):
 def test_hadamard_tensor_core(rows):
     size = 256
     print(f"Testing hadamard with {rows} rows")
-    x = torch.randn((rows, size), device="cuda", dtype=torch.float32)
+    x = torch.randn((rows, size), device="cuda", dtype=torch.float16)
 
     H = scipy_hadamard(size)
-    correct = torch.tensor(np.dot(H, x.cpu().numpy().T)).to(torch.float32)
+    correct = torch.tensor(np.dot(H, x.cpu().numpy().T)).to(torch.float16)
 
     t1 = time.perf_counter_ns()
     c = size_to_f[size](x)
