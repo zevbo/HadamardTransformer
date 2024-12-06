@@ -298,14 +298,17 @@ template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
 }
 
 torch::Tensor hadamard_transform_tensor_core_256(torch::Tensor x) {
+  printf("Starting tensor core 256 run\n");
   TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
-  // TORCH_CHECK(x.scalar_type() == torch::kHalf, "Must be f16");
-  auto out = torch::empty_like(x);
+  TORCH_CHECK(x.scalar_type() == torch::kHalf, "Must be f16");
+  auto out = torch::empty_like(x); //, x.options().dtype(at::kHalf));
   int32_t rows = x.size(0);
   auto t1 = std::chrono::high_resolution_clock::now();
+  printf("Getting data pointer\n");
   tensor_core_hadamard_256<<<rows, 32, 256 * sizeof(half)>>>(
-      reinterpret_cast<half *>(x.data_ptr<float>()),
-      reinterpret_cast<half *>(out.data_ptr<float>()));
+      reinterpret_cast<half *>(x.data_ptr<at::Half>()),
+      reinterpret_cast<half *>(out.data_ptr<at::Half>()));
+  printf("Got data ptr\n");
   cudaDeviceSynchronize();
   auto t2 = std::chrono::high_resolution_clock::now();
   auto us =

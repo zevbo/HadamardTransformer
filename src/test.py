@@ -61,18 +61,21 @@ def test_hadamard_multi(size, rows):
 
 def test_hadamard_tensor_core(rows):
     size = 256
-    print(f"Testing hadamard with {rows} rows")
+    print(f"Testing tensor core hadamard with {rows} rows")
     x = torch.randn((rows, size), device="cuda", dtype=torch.float16)
+    cutoff = 4
+    for i in range(cutoff, size):
+        x[0, i] = 0
 
     H = scipy_hadamard(size)
     correct = torch.tensor(np.dot(H, x.cpu().numpy().T)).to(torch.float16)
 
     t1 = time.perf_counter_ns()
-    c = size_to_f[size](x)
+    c = hadamard_cuda.hadamard_transform_tensor_core_256(x)
     t2 = time.perf_counter_ns()
     c = c.T
 
-    for i in range(16):
+    for i in range(cutoff):
         print(f"{i = }: {c[i, 0] = }, {correct[i, 0] = }")
 
     ideal_t = x.numel() * 2 * 4 * 1000 / (448 * 1024 * 1024 * 1024)
@@ -95,12 +98,12 @@ if __name__ == "__main__":
     # test_hadamard()
     size = 512
     with torch.no_grad():
+        test_hadamard_tensor_core(1)
         test_hadamard_multi(size, 1)
         test_hadamard_multi(size, 2)
         test_hadamard_multi(size, 128)
         test_hadamard_multi(size, 1024)
         test_hadamard_multi(size, 1024 * 16)
-        test_hadamard_tensor_core(1)
 
         # test_hadamard_multi(size, 1024 * 32)
         # test_hadamard_multi(size, 1024 * 64)
