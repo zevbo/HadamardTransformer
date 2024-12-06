@@ -59,15 +59,11 @@ def test_hadamard_multi(size, rows):
         )
 
 
-def test_hadamard_tensor_core(rows, irr):
+def test_hadamard_tensor_core(rows):
     size = 256
     print(f"Testing tensor core hadamard with {rows} rows")
     x = torch.randn((rows, size), device="cuda", dtype=torch.float16)
 
-    x_cpu = x.to("cpu")
-    for i in range(0, size):
-        if irr(i):
-            x[0, i] = 0
     print(f"{x.shape = }, {x.stride = }, {x.is_contiguous()}")
 
     H = scipy_hadamard(size)
@@ -77,18 +73,7 @@ def test_hadamard_tensor_core(rows, irr):
     c: torch.Tensor = hadamard_cuda.hadamard_transform_tensor_core_256(x)
     t2 = time.perf_counter_ns()
     print(f"{c.shape = }, {c.stride() = }, {c.is_contiguous() = }")
-
     c = c.T
-    c_cpu = c.to("cpu")
-    for i in range(0, size):
-        break
-        if not irr(i):
-            print(f"{i = }: {x_cpu[0, i] = }")
-
-    for i in range(0, size):
-        break
-        if not irr(i):
-            print(f"{i = }: {c_cpu[i, 0] = }, {correct[i, 0] = }")
 
     ideal_t = x.numel() * 2 * 4 * 1000 / (448 * 1024 * 1024 * 1024)
     total_time = (t2 - t1) / (1000 * 1000)
@@ -110,8 +95,10 @@ if __name__ == "__main__":
     # test_hadamard()
     size = 1024
     with torch.no_grad():
-        test_hadamard_tensor_core(1, lambda i: i % 16 != 0 and i % 16 != 1)
-        test_hadamard_tensor_core(1, lambda i: False)
+        test_hadamard_tensor_core(1)
+        test_hadamard_tensor_core(128)
+        test_hadamard_tensor_core(1024 * 16)
+        test_hadamard_tensor_core(1024 * 64)
         test_hadamard_multi(size, 1)
         test_hadamard_multi(size, 2)
         test_hadamard_multi(size, 128)

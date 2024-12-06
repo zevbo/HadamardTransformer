@@ -300,10 +300,12 @@ template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
   auto us =
       std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
   long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)nFullSize) * 2 *
-                                  4 * 1000 * 1000 / (448 * 1024 * 1024);
+                                  sizeof(float) * 1000 * 1000 /
+                                  (448 * 1024 * 1024);
   expected_us /= 1024;
   float slowdown = (float)us / expected_us;
-  printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
+  printf("Total us %d x %d: %lu. Ideal: %lu. Slowdown of %.2f\n", rows,
+         nFullSize, us, expected_us,
          slowdown); //,
   //         (float)us / expected_us);
   return out;
@@ -315,25 +317,22 @@ torch::Tensor hadamard_transform_tensor_core_256(torch::Tensor x) {
   TORCH_CHECK(x.scalar_type() == torch::kHalf, "Must be f16");
   auto out = torch::empty_like(x, x.options().dtype(at::kHalf).memory_format(
                                       torch::MemoryFormat::Contiguous));
-  printf("Out data ptr: %p\n", out.data_ptr<at::Half>());
   int32_t rows = x.size(0);
   auto t1 = std::chrono::high_resolution_clock::now();
-  printf("Getting data pointer\n");
   tensor_core_hadamard_256<<<rows, 32, 256 * sizeof(half)>>>(
       reinterpret_cast<half *>(x.data_ptr<at::Half>()),
       reinterpret_cast<half *>(out.data_ptr<at::Half>()));
-  printf("Got data ptr\n");
-  printf("Some x stuff: %d, %d. Out stuff: %d, %d\n", x.size(0), x.size(1),
-         out.size(0), out.size(1));
   cudaDeviceSynchronize();
   auto t2 = std::chrono::high_resolution_clock::now();
   auto us =
       std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)256) * 2 * 4 *
-                                  1000 * 1000 / (448 * 1024 * 1024);
+  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)256) * 2 *
+                                  sizeof(half) * 1000 * 1000 /
+                                  (448 * 1024 * 1024);
   expected_us /= 1024;
   float slowdown = (float)us / expected_us;
-  printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
+  printf("TC Total us %d: %lu. Ideal: %lu. Slowdown of %.2f\n", rows, us,
+         expected_us,
          slowdown); //,
   return out;
 }
