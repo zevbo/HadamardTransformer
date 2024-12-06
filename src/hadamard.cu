@@ -34,6 +34,39 @@ dims gridDim = {};
 typedef __half half;
 typedef __half2 packed_half;
 
+template <int nFullSize, int nWarpSize, typename ty>
+__device__ void load_to_shmem(const ty *x, ty *shmem_x) {
+  const ty *block_x = x + nFullSize * blockIdx.x;
+  constexpr int32_t nPortion = nFullSize / nWarpSize;
+  ty load_registers[nPortion];
+
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    load_registers[i] = block_x[threadIdx.x + i * nWarpSize];
+  }
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    shmem_x[threadIdx.x + i * nWarpSize] = load_registers[i];
+  }
+  __syncthreads();
+}
+
+template <int nFullSize, int nWarpSize, typename ty>
+__device__ void load_from_shmem(ty *out, const ty *shmem_x) {
+  __syncthreads();
+  ty *block_out = out + nFullSize * blockIdx.x;
+  constexpr int32_t nPortion = nFullSize / nWarpSize;
+  ty load_registers[nPortion];
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    load_registers[i] = shmem_x[threadIdx.x + i * nWarpSize];
+  }
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    block_out[threadIdx.x + i * nWarpSize] = load_registers[i];
+  }
+}
+
 inline __device__ uint32_t half2_to_uint(packed_half h2_val) {
   return *reinterpret_cast<uint32_t *>(&h2_val);
 }
@@ -59,7 +92,7 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
 
   int32_t row_0 = 2 * (threadIdx.x % 4);
   int32_t col_0 = threadIdx.x / 4;
-#define get_shmem_x(row, col) shmem_x[row + col * side_size]
+#define get_shmem_x(row, col) shmem_x[(row) + (col) * (side_size)]
   packed_half t_0_1 =
       __half2(get_shmem_x(row_0, col_0), get_shmem_x(row_0 + 1, col_0));
   packed_half t_0_2 = __half2(get_shmem_x(row_0 + side_size / 2, col_0),
@@ -67,6 +100,7 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
 
   uint32_t zeros[2] = {0};
   uint32_t output[2];
+  packed_half *packed_half_output = reinterpret_cast<packed_half *>(output);
 
   asm("mma.sync.aligned.m16n8k8.row.col.f16.f16.f16.f16 "
       "{%0, %1}, "
@@ -78,7 +112,14 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
         "r"(half2_to_uint(H_2)), "r"(half2_to_uint(H_3)),
         "r"(half2_to_uint(t_0_1)), "r"(half2_to_uint(t_0_2)), "r"(0), "r"(0));
 
-  int32_t H_1_0 = H_0_0;
+  __syncthreads();
+
+  int32_t write_row_0 = threadIdx.x / 4;
+  int32_t write_col_0 = (threadIdx.x % 4) * 2;
+  *reinterpret_cast<packed_half *>(&get_shmem_x(write_row_0, write_col_0)) =
+      packed_half_output[0];
+  *reinterpret_cast<packed_half *>(&get_shmem_x(write_row_0 + 8, write_col_0)) =
+      packed_half_output[1];
 }
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
@@ -100,6 +141,15 @@ template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
       }
     }
   }
+}
+
+__global__ void tensor_core_hadamard_256(const half *x, half *out) {
+
+  extern __shared__ float shmem[];
+  half *shmem_x = (half *)shmem;
+  load_to_shmem<256, 32, half>(x, shmem_x);
+  tensor_core_hadamard(shmem_x);
+  load_from_shmem<256, 32, half>(out, shmem_x);
 }
 
 #define FULL_MASK 0xFFFFFFFF // uint32_t(-1)
@@ -212,37 +262,12 @@ __device__ void hadamard_transform_quantize(const half *input_x, char *output) {
 
 template <int nFullSize, int nWarpSize, typename ty>
 __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
-  const ty *block_x = x + nFullSize * blockIdx.x;
-  ty *block_out = out + nFullSize * blockIdx.x;
   extern __shared__ float shmem[];
   ty *shmem_x = (ty *)shmem;
 
-  constexpr int32_t nPortion = nFullSize / nWarpSize;
-  ty load_registers[nPortion];
-
-#pragma unroll
-  for (int32_t i = 0; i < nPortion; i++) {
-    load_registers[i] = block_x[threadIdx.x + i * nWarpSize];
-  }
-#pragma unroll
-  for (int32_t i = 0; i < nPortion; i++) {
-    shmem_x[threadIdx.x + i * nWarpSize] = load_registers[i];
-  }
-
-  __syncthreads();
-
+  load_to_shmem<nFullSize, nWarpSize, ty>(x, shmem_x);
   hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
-
-  __syncthreads();
-
-#pragma unroll
-  for (int32_t i = 0; i < nPortion; i++) {
-    load_registers[i] = shmem_x[threadIdx.x + i * nWarpSize];
-  }
-#pragma unroll
-  for (int32_t i = 0; i < nPortion; i++) {
-    block_out[threadIdx.x + i * nWarpSize] = load_registers[i];
-  }
+  load_from_shmem<nFullSize, nWarpSize, ty>(out, shmem_x);
 }
 
 template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
@@ -268,6 +293,27 @@ template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
   printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
          slowdown); //,
   //         (float)us / expected_us);
+  return out;
+}
+
+torch::Tensor hadamard_transform_tensor_core_256(torch::Tensor x) {
+  TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
+  TORCH_CHECK(x.scalar_type() == torch::kHalf, "Must be f16");
+  auto out = torch::empty_like(x);
+  int32_t rows = x.size(0);
+  auto t1 = std::chrono::high_resolution_clock::now();
+  tensor_core_hadamard_256<<<rows, 32, 256 * sizeof(half)>>>(
+      x.data_ptr<half>(), out.data_ptr<half>());
+  cudaDeviceSynchronize();
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto us =
+      std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)nFullSize) * 2 *
+                                  4 * 1000 * 1000 / (448 * 1024 * 1024);
+  expected_us /= 1024;
+  float slowdown = (float)us / expected_us;
+  printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
+         slowdown); //,
   return out;
 }
 
