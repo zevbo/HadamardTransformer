@@ -98,7 +98,7 @@ if __name__ == "__main__":
         test_hadamard_tensor_core(1)
         test_hadamard_tensor_core(128)
         test_hadamard_tensor_core(1024 * 16)
-        test_hadamard_tensor_core(1024 * 64)
+        test_hadamard_tensor_core(1024 * 128)
         test_hadamard_multi(size, 1)
         test_hadamard_multi(size, 2)
         test_hadamard_multi(size, 128)
