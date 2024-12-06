@@ -74,7 +74,6 @@ inline __device__ uint32_t half2_to_uint(packed_half h2_val) {
 
 void __device__ tensor_core_hadamard(half *shmem_x) {
   constexpr int side_size = 16;
-  //  constexpr int size = side_size * side_size;
   int32_t r0 = threadIdx.x / 4;
   int32_t c0 = (threadIdx.x % 4) * 2;
 #define is_neg_corn_no_mod(r, c, size) (r >= (size / 2) && c >= (size / 2))
@@ -91,38 +90,42 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
   packed_half H_2 = H_0;
   packed_half H_3 = __half2(__float2half(-1 * H_0_0), __float2half(-1 * H_0_1));
 
-  int32_t row_0 = 2 * (threadIdx.x % 4);
-  int32_t col_0 = threadIdx.x / 4;
-#define get_shmem_x(row, col) shmem_x[(row) + (col) * (side_size)]
-  packed_half t_0_1 =
-      __half2(get_shmem_x(row_0, col_0), get_shmem_x(row_0 + 1, col_0));
-  packed_half t_0_2 = __half2(get_shmem_x(row_0 + side_size / 2, col_0),
-                              get_shmem_x(row_0 + side_size / 2 + 1, col_0));
+  //  constexpr int size = side_size * side_size;
+  for (int side = 0; side <= 1; side++) {
+    int32_t row_0 = 2 * (threadIdx.x % 4);
+    int32_t col_0 = threadIdx.x / 4;
+#define get_shmem_x(row, col)                                                  \
+  shmem_x[(row) + (col + side * (side_size / 2)) * (side_size)]
+    packed_half t_0_1 =
+        __half2(get_shmem_x(row_0, col_0), get_shmem_x(row_0 + 1, col_0));
+    packed_half t_0_2 = __half2(get_shmem_x(row_0 + side_size / 2, col_0),
+                                get_shmem_x(row_0 + side_size / 2 + 1, col_0));
 
-  uint32_t zeros[2] = {0};
-  uint32_t output[2];
-  packed_half *packed_half_output = reinterpret_cast<packed_half *>(output);
+    uint32_t output[2];
+    packed_half *packed_half_output = reinterpret_cast<packed_half *>(output);
 
-  asm("mma.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16 "
-      "{%0, %1}, "
-      "{%2, %3, %4, %5}, "
-      "{%6, %7}, "
-      "{%8, %9};"
-      : "=r"(output[0]), "=r"(output[1])
-      : "r"(half2_to_uint(H_0)), "r"(half2_to_uint(H_1)),
-        "r"(half2_to_uint(H_2)), "r"(half2_to_uint(H_3)),
-        "r"(half2_to_uint(t_0_1)), "r"(half2_to_uint(t_0_2)), "r"(0), "r"(0));
+    asm("mma.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16 "
+        "{%0, %1}, "
+        "{%2, %3, %4, %5}, "
+        "{%6, %7}, "
+        "{%8, %9};"
+        : "=r"(output[0]), "=r"(output[1])
+        : "r"(half2_to_uint(H_0)), "r"(half2_to_uint(H_1)),
+          "r"(half2_to_uint(H_2)), "r"(half2_to_uint(H_3)),
+          "r"(half2_to_uint(t_0_1)), "r"(half2_to_uint(t_0_2)), "r"(0), "r"(0));
 
-  __syncthreads();
+    __syncthreads();
 
-  int32_t write_row_0 = threadIdx.x / 4;
-  int32_t write_col_0 = (threadIdx.x % 4) * 2;
-  get_shmem_x(write_row_0, write_col_0) = __low2half(packed_half_output[0]);
-  get_shmem_x(write_row_0, write_col_0 + 1) =
-      __high2half(packed_half_output[1]);
-  get_shmem_x(write_row_0 + 8, write_col_0) = __low2half(packed_half_output[1]);
-  get_shmem_x(write_row_0 + 8, write_col_0 + 1) =
-      __high2half(packed_half_output[1]);
+    int32_t write_row_0 = threadIdx.x / 4;
+    int32_t write_col_0 = (threadIdx.x % 4) * 2;
+    get_shmem_x(write_row_0, write_col_0) = __low2half(packed_half_output[0]);
+    get_shmem_x(write_row_0, write_col_0 + 1) =
+        __high2half(packed_half_output[0]);
+    get_shmem_x(write_row_0 + 8, write_col_0) =
+        __low2half(packed_half_output[1]);
+    get_shmem_x(write_row_0 + 8, write_col_0 + 1) =
+        __high2half(packed_half_output[1]);
+  }
 }
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {

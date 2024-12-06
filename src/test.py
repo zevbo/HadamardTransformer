@@ -64,8 +64,11 @@ def test_hadamard_tensor_core(rows):
     print(f"Testing tensor core hadamard with {rows} rows")
     x = torch.randn((rows, size), device="cuda", dtype=torch.float16)
     x_cpu = x.to("cpu")
-    cutoff = 4
-    for i in range(cutoff, size):
+    cutoff0 = 256 - 16
+    cutoff1 = 256
+    for i in range(0, cutoff0):
+        x[0, i] = 0
+    for i in range(cutoff1, size):
         x[0, i] = 0
     print(f"{x.shape = }, {x.stride = }, {x.is_contiguous()}")
 
@@ -79,10 +82,10 @@ def test_hadamard_tensor_core(rows):
 
     c = c.T
     c_cpu = c.to("cpu")
-    for i in range(cutoff):
+    for i in range(cutoff0, cutoff1):
         print(f"{i = }: {x_cpu[0, i] = }")
 
-    for i in range(cutoff):
+    for i in range(cutoff0, cutoff1):
         print(f"{i = }: {c_cpu[i, 0] = }, {correct[i, 0] = }")
 
     ideal_t = x.numel() * 2 * 4 * 1000 / (448 * 1024 * 1024 * 1024)
@@ -92,16 +95,16 @@ def test_hadamard_tensor_core(rows):
     passed = torch.allclose(c, torch.tensor(correct).to("cuda"), atol=0.01)
     if passed:
         print(
-            f"Test passed! Took {total_time} ms, which is a slowdown of {round(slowdown, 2)}"
+            f"TC Test passed! Took {total_time} ms, which is a slowdown of {round(slowdown, 2)}"
         )
     else:
         print(
-            f"Test failed. Took {total_time} ms, which is a slowdown of {round(slowdown, 2)}"
+            f"TC Test failed. Took {total_time} ms, which is a slowdown of {round(slowdown, 2)}"
         )
 
 
 if __name__ == "__main__":
-    print("B")
+    print("C")
     # test_hadamard()
     size = 512
     with torch.no_grad():
