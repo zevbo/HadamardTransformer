@@ -24,6 +24,7 @@ def test_hadamard():
 
 
 size_to_f = {
+    256: hadamard_cuda.hadamard_transform_f32_256,
     512: hadamard_cuda.hadamard_transform_f32_512,
     1024: hadamard_cuda.hadamard_transform_f32_1024,
 }
@@ -62,7 +63,7 @@ def test_hadamard_multi(size, rows):
 if __name__ == "__main__":
     print("B")
     # test_hadamard()
-    size = 1024
+    size = 256
     with torch.no_grad():
         test_hadamard_multi(size, 1)
         test_hadamard_multi(size, 2)

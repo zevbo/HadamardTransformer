@@ -2,12 +2,15 @@
 #include <vector>
 
 // Declaration of the kernel function (defined in extension_kernel.cu).
+torch::Tensor hadamard_transform_f32_256(torch::Tensor x);
 torch::Tensor hadamard_transform_f32_512(torch::Tensor x);
 torch::Tensor hadamard_transform_f32_1024(torch::Tensor x);
 torch::Tensor hadamard_transform_f32_2048(torch::Tensor x);
 torch::Tensor hadamard_transform_f32_32768(torch::Tensor x);
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
+  m.def("hadamard_transform_f32_256", &hadamard_transform_f32_256,
+        "Test hadamard, f32, 256 long");
   m.def("hadamard_transform_f32_512", &hadamard_transform_f32_512,
         "Test hadamard, f32, 512 long");
   m.def("hadamard_transform_f32_1024", &hadamard_transform_f32_1024,
