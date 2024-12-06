@@ -73,7 +73,7 @@ inline __device__ uint32_t half2_to_uint(packed_half h2_val) {
 
 void __device__ tensor_core_hadamard(half *shmem_x) {
   constexpr int side_size = 16;
-  constexpr int size = side_size * side_size;
+  //  constexpr int size = side_size * side_size;
   int32_t r0 = threadIdx.x / 4;
   int32_t c0 = (threadIdx.x % 4) * 2;
 #define is_neg_corn_no_mod(r, c, size) (r >= (size / 2) && c >= (size / 2))
@@ -98,7 +98,7 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
   packed_half t_0_2 = __half2(get_shmem_x(row_0 + side_size / 2, col_0),
                               get_shmem_x(row_0 + side_size / 2 + 1, col_0));
 
-  uint32_t zeros[2] = {0};
+  // uint32_t zeros[2] = {0};
   uint32_t output[2];
   packed_half *packed_half_output = reinterpret_cast<packed_half *>(output);
 
@@ -116,10 +116,11 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
 
   int32_t write_row_0 = threadIdx.x / 4;
   int32_t write_col_0 = (threadIdx.x % 4) * 2;
-  *reinterpret_cast<packed_half *>(&get_shmem_x(write_row_0, write_col_0)) =
-      packed_half_output[0];
-  *reinterpret_cast<packed_half *>(&get_shmem_x(write_row_0 + 8, write_col_0)) =
-      packed_half_output[1];
+  // *reinterpret_cast<packed_half *>(&get_shmem_x(write_row_0, write_col_0)) =
+  packed_half_output[0];
+  //*reinterpret_cast<packed_half *>(&get_shmem_x(write_row_0 + 8, write_col_0))
+  //=
+  packed_half_output[1];
 }
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
@@ -308,8 +309,8 @@ torch::Tensor hadamard_transform_tensor_core_256(torch::Tensor x) {
   auto t2 = std::chrono::high_resolution_clock::now();
   auto us =
       std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)nFullSize) * 2 *
-                                  4 * 1000 * 1000 / (448 * 1024 * 1024);
+  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)256) * 2 * 4 *
+                                  1000 * 1000 / (448 * 1024 * 1024);
   expected_us /= 1024;
   float slowdown = (float)us / expected_us;
   printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
