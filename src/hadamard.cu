@@ -2,6 +2,7 @@
 #define __shared__
 // #include <thread>
 #include <chrono>
+#include <cstdio>
 #include <ctime>
 #define __global__
 #define __device__
@@ -98,14 +99,14 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
   packed_half t_0_2 = __half2(get_shmem_x(row_0 + side_size / 2, col_0),
                               get_shmem_x(row_0 + side_size / 2 + 1, col_0));
 
-  // uint32_t zeros[2] = {0};
+  uint32_t zeros[2] = {0};
   uint32_t output[2];
   packed_half *packed_half_output = reinterpret_cast<packed_half *>(output);
 
-  asm("mma.sync.aligned.m16n8k8.row.col.f16.f16.f16.f16 "
+  asm("mma.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16 "
       "{%0, %1}, "
-      "{%2, %3, %4, %5}"
-      "{%6, %7}"
+      "{%2, %3, %4, %5}, "
+      "{%6, %7}, "
       "{%8, %9};"
       : "=r"(output[0]), "=r"(output[1])
       : "r"(half2_to_uint(H_0)), "r"(half2_to_uint(H_1)),
@@ -116,11 +117,12 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
 
   int32_t write_row_0 = threadIdx.x / 4;
   int32_t write_col_0 = (threadIdx.x % 4) * 2;
-  // *reinterpret_cast<packed_half *>(&get_shmem_x(write_row_0, write_col_0)) =
-  packed_half_output[0];
-  //*reinterpret_cast<packed_half *>(&get_shmem_x(write_row_0 + 8, write_col_0))
-  //=
-  packed_half_output[1];
+  get_shmem_x(write_row_0, write_col_0) = __low2half(packed_half_output[0]);
+  get_shmem_x(write_row_0, write_col_0 + 1) =
+      __high2half(packed_half_output[1]);
+  get_shmem_x(write_row_0 + 8, write_col_0) = __low2half(packed_half_output[1]);
+  get_shmem_x(write_row_0 + 8, write_col_0 + 1) =
+      __high2half(packed_half_output[1]);
 }
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
@@ -301,7 +303,9 @@ torch::Tensor hadamard_transform_tensor_core_256(torch::Tensor x) {
   printf("Starting tensor core 256 run\n");
   TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
   TORCH_CHECK(x.scalar_type() == torch::kHalf, "Must be f16");
-  auto out = torch::empty_like(x); //, x.options().dtype(at::kHalf));
+  auto out = torch::empty_like(x, x.options().dtype(at::kHalf).memory_format(
+                                      torch::MemoryFormat::Contiguous));
+  printf("Out data ptr: %p\n", out.data_ptr<at::Half>());
   int32_t rows = x.size(0);
   auto t1 = std::chrono::high_resolution_clock::now();
   printf("Getting data pointer\n");
@@ -309,6 +313,8 @@ torch::Tensor hadamard_transform_tensor_core_256(torch::Tensor x) {
       reinterpret_cast<half *>(x.data_ptr<at::Half>()),
       reinterpret_cast<half *>(out.data_ptr<at::Half>()));
   printf("Got data ptr\n");
+  printf("Some x stuff: %d, %d. Out stuff: %d, %d\n", x.size(0), x.size(1),
+         out.size(0), out.size(1));
   cudaDeviceSynchronize();
   auto t2 = std::chrono::high_resolution_clock::now();
   auto us =
