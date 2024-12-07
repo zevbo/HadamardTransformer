@@ -1,7 +1,6 @@
 #ifndef __CUDACC__ // If we're not compiling with nvcc or CUDA isn't available
 #define __shared__
 // #include <thread>
-#include <chrono>
 #include <ctime>
 #define __global__
 #define __device__
@@ -18,19 +17,13 @@ dims blockIdx = {};
 dims gridDim = {};
 #include "cuda_runtime.h"
 
-// #include <immintrin.h>
 #else
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
-#include <torch/extension.h>
 #endif
 
 #include <assert.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <vector>
-
-typedef __half half;
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
@@ -42,8 +35,8 @@ template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
       for (int32_t i = 0; i < exchange; i++) {
         int32_t i0 = group_i0 + i;
         int32_t i1 = i0 + exchange;
-        assert(i0 < nSize);
-        assert(i1 < nSize);
+        // assert(i0 < nSize);
+        // assert(i1 < nSize);
         ty a = x[i0];
         ty b = x[i1];
         x[i0] = a + b;
@@ -66,7 +59,7 @@ __device__ void warp_shuffle_hadamard(ty x[nSize]) {
     for (int32_t i = 0; i < nSize; i++) {
       ty this_val = x[i];
       ty other_x = __shfl_xor_sync(FULL_MASK, this_val, exchange, nWarpSize);
-      x[i] = other_x + (is_bottom ? -1 : 1) * this_val;
+      x[i] = other_x + (is_bottom ? -this_val : this_val);
     }
   }
 }
@@ -125,39 +118,83 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
   }
 }
 
-__device__ char float16_to_int4(half val, float scale) {
-  float f32 = __half2float(val);
-  int scaled = __float2int_rn(f32 * scale);
-  return (char)min(max(scaled, -8), 7);
+__forceinline__ __device__ uint8_t float16_to_int4(half val, half scale) {
+  int scaled = __half2int_rn(__hdiv(val, scale));
+  return (uint8_t)min(max(scaled, -8), 7);
 }
 
-__device__ char comb_int4s(char i41, char i42) { return (i41 << 4) + i42; }
+__device__ uint8_t pack_int4s(uint8_t i41, uint8_t i42) {
+  return (i42 << 4) | (i41 & 0xF);
+}
 
-template <int nFullSize, int nWarpSize>
-__device__ void hadamard_transform_quantize(const half *input_x, char *output) {
+template <int nFullSize, int nWarpSize = 32>
+__device__ void hadamard_transform_group_quantize(const half *input_x,
+                                                  uint8_t *output,
+                                                  half *group_scale) {
   static_assert(nFullSize % nWarpSize == 0,
                 "nFullSize must be divisible by nWarpSize");
+
   constexpr int32_t nSize = nFullSize / nWarpSize;
-  static_assert(nSize % 2 == 0,
-                "nSize must be a power of 2 (this just checks even though)");
+  static_assert((nSize & (nSize - 1)) == 0, "nSize must be a power of 2");
+
   half x[nSize];
-  int32_t thread_idx = threadIdx.x % nWarpSize;
-  int32_t i0 = thread_idx * nSize;
+
+  int32_t lane_idx = threadIdx.x % nWarpSize;
+  int32_t i0 = lane_idx * nSize;
+
+  // Use vectorized loads to reduce bank conflicts
+  if constexpr (nSize == 2) {
+    unsigned int raw = *reinterpret_cast<const unsigned int *>(input_x + i0);
+    x[0] = __ushort_as_half(raw & 0xFFFF);
+    x[1] = __ushort_as_half(raw >> 16);
+  } else if constexpr (nSize == 4) {
+    uint2 raw = *reinterpret_cast<const uint2 *>(input_x + i0);
+    x[0] = __ushort_as_half(raw.x & 0xFFFF);
+    x[1] = __ushort_as_half(raw.x >> 16);
+    x[2] = __ushort_as_half(raw.y & 0xFFFF);
+    x[3] = __ushort_as_half(raw.y >> 16);
+  } else if constexpr (nSize == 8) {
+    uint4 raw = *reinterpret_cast<const uint4 *>(input_x + i0);
+    x[0] = __ushort_as_half(raw.x & 0xFFFF);
+    x[1] = __ushort_as_half(raw.x >> 16);
+    x[2] = __ushort_as_half(raw.y & 0xFFFF);
+    x[3] = __ushort_as_half(raw.y >> 16);
+    x[4] = __ushort_as_half(raw.z & 0xFFFF);
+    x[5] = __ushort_as_half(raw.z >> 16);
+    x[6] = __ushort_as_half(raw.w & 0xFFFF);
+    x[7] = __ushort_as_half(raw.w >> 16);
+  } else {
 #pragma unroll
-  for (int32_t i = 0; i < nSize; i++) {
-    int32_t j = i; // ^ thread_idx;
-    x[j] = input_x[i0 + j];
+    for (int32_t i = 0; i < nSize; i++) {
+      x[i] = input_x[i0 + i];
+    }
   }
 
   hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
 
-  int32_t i0_out = i0 / 2;
+  half absmax = 0;
+#pragma unroll
+  for (int32_t i = 0; i < nSize; i++) {
+    absmax = __hmax(absmax, __habs(x[i]));
+  }
 
+  // Get the absolute maximum value across the warp, via INTEGER warp reduction
+  // operation. This is a bit of a hack, but doable because absmax are positive,
+  // under which IEEE-754 floats can be compared bit-wise as integers.
+  absmax =
+      __short_as_half(__reduce_max_sync(0xFFFFFFFF, __half_as_short(absmax)));
+  half scale = __hdiv(absmax, 7);
+
+  if (lane_idx == 0) {
+    *group_scale = scale;
+  }
+
+  int32_t i0_out = i0 / 2;
 #pragma unroll
   for (int32_t i = 0; i < nSize / 2; i++) {
-    int32_t j = i; // ^ thread_idx);
-    output[i0_out + j] =
-        comb_int4s(float16_to_int4(x[j * 2]), float16_to_int4(x[j * 2 + 1]));
+    uint8_t packed = pack_int4s(float16_to_int4(x[i * 2], scale),
+                                float16_to_int4(x[i * 2 + 1], scale));
+    output[i0_out + i] = packed;
   }
 }
 
@@ -194,50 +231,4 @@ __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
   for (int32_t i = 0; i < nPortion; i++) {
     block_out[threadIdx.x + i * nWarpSize] = load_registers[i];
   }
-}
-
-template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
-  TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
-  TORCH_CHECK(x.scalar_type() == torch::kFloat, "Must be f32");
-  auto out = torch::empty_like(x);
-  int32_t rows = x.size(0);
-  printf("Rows, nFullSize: %d, %d\n", rows, nFullSize);
-  fflush(stdout);
-
-  auto t1 = std::chrono::high_resolution_clock::now();
-  hadamard_transform_from_global<nFullSize, 32, float>
-      <<<rows, 32, nFullSize * sizeof(float)>>>(x.data_ptr<float>(),
-                                                out.data_ptr<float>());
-  cudaDeviceSynchronize();
-  auto t2 = std::chrono::high_resolution_clock::now();
-  auto us =
-      std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)nFullSize) * 2 *
-                                  4 * 1000 * 1000 / (448 * 1024 * 1024);
-  expected_us /= 1024;
-  float slowdown = (float)us / expected_us;
-  printf("Total us: %lu. Ideal: %lu. Slowdown of %.2f\n", us, expected_us,
-         slowdown); //,
-  //         (float)us / expected_us);
-  return out;
-}
-
-torch::Tensor hadamard_transform_f32_512(torch::Tensor x) {
-  return hadamard_transform_f32<512>(x);
-}
-
-torch::Tensor hadamard_transform_f32_1024(torch::Tensor x) {
-  return hadamard_transform_f32<1024>(x);
-}
-torch::Tensor hadamard_transform_f32_2048(torch::Tensor x) {
-  return hadamard_transform_f32<2048>(x);
-}
-
-torch::Tensor hadamard_transform_f32_32768(torch::Tensor x) {
-  return hadamard_transform_f32<32768>(x);
-}
-
-int main() {
-  printf("Hello World!\n");
-  return 0;
 }
