@@ -1,6 +1,10 @@
+#ifndef HADAMARD_CUH
+#define HADAMARD_CUH
 #ifndef __CUDACC__ // If we're not compiling with nvcc or CUDA isn't available
 #define __shared__
 // #include <thread>
+#include <chrono>
+#include <cstdio>
 #include <ctime>
 #define __global__
 #define __device__
@@ -20,10 +24,116 @@ dims gridDim = {};
 #else
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
+#include <vector>
 #endif
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
+
+typedef __half half;
+typedef __half2 packed_half;
+
+template <int nFullSize, int nWarpSize, typename ty>
+__device__ void load_to_shmem(const ty *x, ty *shmem_x) {
+  const ty *block_x = x + nFullSize * blockIdx.x;
+  constexpr int32_t nPortion = nFullSize / nWarpSize;
+  ty load_registers[nPortion];
+
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    load_registers[i] = block_x[threadIdx.x + i * nWarpSize];
+  }
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    shmem_x[threadIdx.x + i * nWarpSize] = load_registers[i];
+  }
+  __syncthreads();
+}
+
+template <int nFullSize, int nWarpSize, typename ty>
+__device__ void load_from_shmem(ty *out, const ty *shmem_x) {
+  __syncthreads();
+  ty *block_out = out + nFullSize * blockIdx.x;
+  constexpr int32_t nPortion = nFullSize / nWarpSize;
+  ty load_registers[nPortion];
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    load_registers[i] = shmem_x[threadIdx.x + i * nWarpSize];
+  }
+#pragma unroll
+  for (int32_t i = 0; i < nPortion; i++) {
+    block_out[threadIdx.x + i * nWarpSize] = load_registers[i];
+  }
+}
+
+inline __device__ uint32_t half2_to_uint(packed_half h2_val) {
+  return *reinterpret_cast<uint32_t *>(&h2_val);
+}
+
+void __device__ tensor_core_hadamard(half *shmem_x) {
+  constexpr int side_size = 16;
+  int32_t r0 = threadIdx.x / 4;
+  int32_t c0 = (threadIdx.x % 4) * 2;
+#define is_neg_corn_no_mod(r, c, size) (r >= (size / 2) && c >= (size / 2))
+#define is_neg_corn(r, c, size)                                                \
+  ((r % size) >= (size / 2) && (c % size) >= (size / 2))
+  bool is_neg_0 = is_neg_corn_no_mod(r0, c0, 8) ^ is_neg_corn(r0, c0, 4) ^
+                  is_neg_corn(r0, c0, 2);
+  float H_0_0 = is_neg_0 ? -1.0f : 1.0f;
+  bool is_neg_1 = is_neg_0 ^ is_neg_corn(r0, c0 + 1, 2);
+  float H_0_1 = is_neg_1 ? -1.0f : 1.0f;
+
+  packed_half H_0 = __half2(__float2half(H_0_0), __float2half(H_0_1));
+  packed_half H_1 = H_0;
+  packed_half H_2 = H_0;
+  packed_half H_3 = __half2(__float2half(-1 * H_0_0), __float2half(-1 * H_0_1));
+
+  //  constexpr int size = side_size * side_size;
+  for (int run = 0; run <= 1; run++) {
+    for (int side = 0; side <= 1; side++) {
+      int32_t row_0 = 2 * (threadIdx.x % 4);
+      int32_t col_0 = threadIdx.x / 4;
+#define get_shmem_x_under(row, col)                                            \
+  shmem_x[(run == 0 ? (row) : (col)) +                                         \
+          ((run == 0 ? (col) : (row)) * (side_size))]
+#define get_shmem_x(row, col)                                                  \
+  get_shmem_x_under(row, (col + side * (side_size / 2)))
+      packed_half t_0_1 =
+          __half2(get_shmem_x(row_0, col_0), get_shmem_x(row_0 + 1, col_0));
+      packed_half t_0_2 =
+          __half2(get_shmem_x(row_0 + side_size / 2, col_0),
+                  get_shmem_x(row_0 + side_size / 2 + 1, col_0));
+
+      uint32_t output[2];
+      packed_half *packed_half_output = reinterpret_cast<packed_half *>(output);
+
+      asm("mma.sync.aligned.m16n8k16.row.col.f16.f16.f16.f16 "
+          "{%0, %1}, "
+          "{%2, %3, %4, %5}, "
+          "{%6, %7}, "
+          "{%8, %9};"
+          : "=r"(output[0]), "=r"(output[1])
+          : "r"(half2_to_uint(H_0)), "r"(half2_to_uint(H_1)),
+            "r"(half2_to_uint(H_2)), "r"(half2_to_uint(H_3)),
+            "r"(half2_to_uint(t_0_1)), "r"(half2_to_uint(t_0_2)), "r"(0),
+            "r"(0));
+
+      __syncthreads();
+
+      int32_t write_row_0 = threadIdx.x / 4;
+      int32_t write_col_0 = (threadIdx.x % 4) * 2;
+      get_shmem_x(write_row_0, write_col_0) = __low2half(packed_half_output[0]);
+      get_shmem_x(write_row_0, write_col_0 + 1) =
+          __high2half(packed_half_output[0]);
+      get_shmem_x(write_row_0 + 8, write_col_0) =
+          __low2half(packed_half_output[1]);
+      get_shmem_x(write_row_0 + 8, write_col_0 + 1) =
+          __high2half(packed_half_output[1]);
+    }
+  }
+}
 
 template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
 #pragma unroll
@@ -44,6 +154,15 @@ template <int nSize, typename ty> __device__ void simple_hadamard(ty x[nSize]) {
       }
     }
   }
+}
+
+__global__ void tensor_core_hadamard_256(const half *x, half *out) {
+
+  extern __shared__ float shmem[];
+  half *shmem_x = (half *)shmem;
+  load_to_shmem<256, 32, half>(x, shmem_x);
+  tensor_core_hadamard(shmem_x);
+  load_from_shmem<256, 32, half>(out, shmem_x);
 }
 
 #define FULL_MASK 0xFFFFFFFF // uint32_t(-1)
@@ -172,7 +291,7 @@ __device__ void hadamard_transform_group_quantize(const half *input_x,
 
   hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
 
-  half absmax = 0;
+  half absmax = __float2half(0.0);
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
     absmax = __hmax(absmax, __habs(x[i]));
@@ -183,7 +302,7 @@ __device__ void hadamard_transform_group_quantize(const half *input_x,
   // under which IEEE-754 floats can be compared bit-wise as integers.
   absmax =
       __short_as_half(__reduce_max_sync(0xFFFFFFFF, __half_as_short(absmax)));
-  half scale = __hdiv(absmax, 7);
+  half scale = __hdiv(absmax, __float2half(7.0));
 
   if (lane_idx == 0) {
     *group_scale = scale;
@@ -200,35 +319,12 @@ __device__ void hadamard_transform_group_quantize(const half *input_x,
 
 template <int nFullSize, int nWarpSize, typename ty>
 __global__ void hadamard_transform_from_global(const ty *x, ty *out) {
-  const ty *block_x = x + nFullSize * blockIdx.x;
-  ty *block_out = out + nFullSize * blockIdx.x;
   extern __shared__ float shmem[];
   ty *shmem_x = (ty *)shmem;
 
-  constexpr int32_t nPortion = nFullSize / nWarpSize;
-  ty load_registers[nPortion];
-
-#pragma unroll
-  for (int32_t i = 0; i < nPortion; i++) {
-    load_registers[i] = block_x[threadIdx.x + i * nWarpSize];
-  }
-#pragma unroll
-  for (int32_t i = 0; i < nPortion; i++) {
-    shmem_x[threadIdx.x + i * nWarpSize] = load_registers[i];
-  }
-
-  __syncthreads();
-
+  load_to_shmem<nFullSize, nWarpSize, ty>(x, shmem_x);
   hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
-
-  __syncthreads();
-
-#pragma unroll
-  for (int32_t i = 0; i < nPortion; i++) {
-    load_registers[i] = shmem_x[threadIdx.x + i * nWarpSize];
-  }
-#pragma unroll
-  for (int32_t i = 0; i < nPortion; i++) {
-    block_out[threadIdx.x + i * nWarpSize] = load_registers[i];
-  }
+  load_from_shmem<nFullSize, nWarpSize, ty>(out, shmem_x);
 }
+
+#endif
