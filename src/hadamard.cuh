@@ -307,8 +307,7 @@ __device__ uint8_t pack_int4s(uint8_t i41, uint8_t i42) {
 }
 
 template <int nFullSize, int nWarpSize = 32>
-__device__ void hadamard_transform_group_quantize(const half *input_x,
-                                                  uint8_t *output,
+__device__ void hadamard_transform_group_quantize(uint8_t *data,
                                                   half *group_scale) {
   static_assert(nFullSize % nWarpSize == 0,
                 "nFullSize must be divisible by nWarpSize");
@@ -322,30 +321,33 @@ __device__ void hadamard_transform_group_quantize(const half *input_x,
   int32_t i0 = lane_idx * nSize;
 
   // Use vectorized loads to reduce bank conflicts
-  if constexpr (nSize == 2) {
-    unsigned int raw = *reinterpret_cast<const unsigned int *>(input_x + i0);
-    x[0] = __ushort_as_half(raw & 0xFFFF);
-    x[1] = __ushort_as_half(raw >> 16);
-  } else if constexpr (nSize == 4) {
-    uint2 raw = *reinterpret_cast<const uint2 *>(input_x + i0);
-    x[0] = __ushort_as_half(raw.x & 0xFFFF);
-    x[1] = __ushort_as_half(raw.x >> 16);
-    x[2] = __ushort_as_half(raw.y & 0xFFFF);
-    x[3] = __ushort_as_half(raw.y >> 16);
-  } else if constexpr (nSize == 8) {
-    uint4 raw = *reinterpret_cast<const uint4 *>(input_x + i0);
-    x[0] = __ushort_as_half(raw.x & 0xFFFF);
-    x[1] = __ushort_as_half(raw.x >> 16);
-    x[2] = __ushort_as_half(raw.y & 0xFFFF);
-    x[3] = __ushort_as_half(raw.y >> 16);
-    x[4] = __ushort_as_half(raw.z & 0xFFFF);
-    x[5] = __ushort_as_half(raw.z >> 16);
-    x[6] = __ushort_as_half(raw.w & 0xFFFF);
-    x[7] = __ushort_as_half(raw.w >> 16);
-  } else {
+  {
+    const half *input_x = reinterpret_cast<const half *>(data);
+    if constexpr (nSize == 2) {
+      unsigned int raw = *reinterpret_cast<const unsigned int *>(input_x + i0);
+      x[0] = __ushort_as_half(raw & 0xFFFF);
+      x[1] = __ushort_as_half(raw >> 16);
+    } else if constexpr (nSize == 4) {
+      uint2 raw = *reinterpret_cast<const uint2 *>(input_x + i0);
+      x[0] = __ushort_as_half(raw.x & 0xFFFF);
+      x[1] = __ushort_as_half(raw.x >> 16);
+      x[2] = __ushort_as_half(raw.y & 0xFFFF);
+      x[3] = __ushort_as_half(raw.y >> 16);
+    } else if constexpr (nSize == 8) {
+      uint4 raw = *reinterpret_cast<const uint4 *>(input_x + i0);
+      x[0] = __ushort_as_half(raw.x & 0xFFFF);
+      x[1] = __ushort_as_half(raw.x >> 16);
+      x[2] = __ushort_as_half(raw.y & 0xFFFF);
+      x[3] = __ushort_as_half(raw.y >> 16);
+      x[4] = __ushort_as_half(raw.z & 0xFFFF);
+      x[5] = __ushort_as_half(raw.z >> 16);
+      x[6] = __ushort_as_half(raw.w & 0xFFFF);
+      x[7] = __ushort_as_half(raw.w >> 16);
+    } else {
 #pragma unroll
-    for (int32_t i = 0; i < nSize; i++) {
-      x[i] = input_x[i0 + i];
+      for (int32_t i = 0; i < nSize; i++) {
+        x[i] = input_x[i0 + i];
+      }
     }
   }
 
@@ -367,13 +369,16 @@ __device__ void hadamard_transform_group_quantize(const half *input_x,
   if (lane_idx == 0) {
     *group_scale = scale;
   }
-
-  int32_t i0_out = i0 / 2;
+  __syncwarp();
+  {
+    int32_t i0_out = i0 / 2;
+    uint8_t *output = data;
 #pragma unroll
-  for (int32_t i = 0; i < nSize / 2; i++) {
-    uint8_t packed = pack_int4s(float16_to_int4(x[i * 2], scale),
-                                float16_to_int4(x[i * 2 + 1], scale));
-    output[i0_out + i] = packed;
+    for (int32_t i = 0; i < nSize / 2; i++) {
+      uint8_t packed = pack_int4s(float16_to_int4(x[i * 2], scale),
+                                  float16_to_int4(x[i * 2 + 1], scale));
+      output[i0_out + i] = packed;
+    }
   }
 }
 
