@@ -60,7 +60,7 @@ def test_hadamard_multi(size, rows):
 
 
 def test_hadamard_tensor_core(rows):
-    size = 256
+    size = 128
     print(f"Testing tensor core hadamard with {rows} rows")
     x = torch.randn((rows, size), device="cuda", dtype=torch.float16)
 
@@ -70,7 +70,7 @@ def test_hadamard_tensor_core(rows):
     correct = torch.tensor(np.dot(H, x.cpu().numpy().T)).to(torch.float16)
 
     t1 = time.perf_counter_ns()
-    c: torch.Tensor = hadamard_cuda.hadamard_transform_tensor_core_256(x)
+    c: torch.Tensor = hadamard_cuda.hadamard_transform_tensor_core_128(x)
     t2 = time.perf_counter_ns()
     print(f"{c.shape = }, {c.stride() = }, {c.is_contiguous() = }")
     c = c.T
