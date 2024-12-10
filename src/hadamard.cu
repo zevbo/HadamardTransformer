@@ -43,11 +43,9 @@ torch::Tensor hadamard_transform_tensor_core_128(torch::Tensor x) {
                                       torch::MemoryFormat::Contiguous));
   int32_t rows = x.size(0);
   auto t1 = std::chrono::high_resolution_clock::now();
-  /*
   tensor_core_hadamard_128<<<rows, 32, 128 * sizeof(half)>>>(
       reinterpret_cast<half *>(x.data_ptr<at::Half>()),
       reinterpret_cast<half *>(out.data_ptr<at::Half>()));
-      */
   cudaDeviceSynchronize();
   auto t2 = std::chrono::high_resolution_clock::now();
   auto us =
