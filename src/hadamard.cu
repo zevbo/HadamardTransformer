@@ -16,7 +16,7 @@ template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
   fflush(stdout);
 
   auto t1 = std::chrono::high_resolution_clock::now();
-  hadamard_transform_from_global<nFullSize, 32, float>
+  hadamard_transform_from_global<nFullSize, 32, FloatOp>
       <<<rows, 32, nFullSize * sizeof(float)>>>(x.data_ptr<float>(),
                                                 out.data_ptr<float>());
   cudaDeviceSynchronize();

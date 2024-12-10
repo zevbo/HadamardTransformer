@@ -69,32 +69,20 @@ __device__ void load_from_shmem(ty *out, const ty *shmem_x) {
 }
 
 struct HalfOp {
+  using ty = half;
   static __device__ inline half add(half h1, half h2) { return __hadd(h1, h2); }
   static __device__ inline half sub(half h1, half h2) { return __hsub(h1, h2); }
 };
 
-template <int nSize, typename ty, typename op>
-__device__ inline void simple_hadamard_tmpl(ty x[nSize]) {
-#pragma unroll
-  for (int32_t exchange = 1; exchange < nSize; exchange *= 2) {
-    int32_t group_size = exchange * 2;
-#pragma unroll
-    for (int32_t group_i0 = 0; group_i0 < nSize; group_i0 += group_size) {
-#pragma unroll
-      for (int32_t i = 0; i < exchange; i++) {
-        int32_t i0 = group_i0 + i;
-        int32_t i1 = i0 + exchange;
-        ty a = x[i0];
-        ty b = x[i1];
-        x[i0] = op::add(a, b);
-        x[i1] = op::sub(a, b);
-      }
-    }
-  }
-}
+struct FloatOp {
+  using ty = float;
+  static __device__ inline float add(float h1, float h2) { return h1 + h2; }
+  static __device__ inline float sub(float h1, float h2) { return h1 - h2; }
+};
 
-template <int nSize, typename ty>
-__device__ inline void simple_hadamard(ty x[nSize]) {
+template <int nSize, typename Op>
+__device__ inline void simple_hadamard(typename Op::ty x[nSize]) {
+  using ty = typename Op::ty;
 #pragma unroll
   for (int32_t exchange = 1; exchange < nSize; exchange *= 2) {
     int32_t group_size = exchange * 2;
@@ -106,8 +94,8 @@ __device__ inline void simple_hadamard(ty x[nSize]) {
         int32_t i1 = i0 + exchange;
         ty a = x[i0];
         ty b = x[i1];
-        x[i0] = a + b;
-        x[i1] = a - b;
+        x[i0] = Op::add(a, b);
+        x[i1] = Op::sub(a, b);
       }
     }
   }
@@ -181,7 +169,7 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
     local_x[i] = shmem_x[i0 + i];
   }
 
-  simple_hadamard_tmpl<8, half, HalfOp>(local_x);
+  simple_hadamard<8, HalfOp>(local_x);
 
 #pragma unroll
   for (int32_t i = 0; i < 8; i++) {
@@ -272,8 +260,9 @@ __global__ void tensor_core_hadamard_256(const half *x, half *out) {
 
 #define FULL_MASK 0xFFFFFFFF // uint32_t(-1)
 
-template <int nSize, int nWarpSize, typename ty>
-__device__ void warp_shuffle_hadamard(ty x[nSize]) {
+template <int nSize, int nWarpSize, typename Op>
+__device__ void warp_shuffle_hadamard(typename Op::ty x[nSize]) {
+  using ty = typename Op::ty;
 
   int32_t thread_idx = threadIdx.x % nWarpSize;
 #pragma unroll
@@ -283,13 +272,15 @@ __device__ void warp_shuffle_hadamard(ty x[nSize]) {
     for (int32_t i = 0; i < nSize; i++) {
       ty this_val = x[i];
       ty other_x = __shfl_xor_sync(FULL_MASK, this_val, exchange, nWarpSize);
-      x[i] = other_x + (is_bottom ? -this_val : this_val);
+      x[i] = (is_bottom ? Op::sub(other_x, -this_val)
+                        : Op::add(other_x, this_val));
     }
   }
 }
 
-template <int nSize, int nThreads, int nWarpSize, typename ty>
-__device__ void interwarp_transpose(ty x[nSize], ty *shmem) {
+template <int nSize, int nThreads, int nWarpSize, typename Op>
+__device__ void interwarp_transpose(typename Op::ty x[nSize],
+                                    typename Op::ty *shmem) {
   constexpr int32_t nWarps = nThreads / nWarpSize;
   int32_t thread_idx = threadIdx.x % nThreads;
   int32_t thread_id = thread_idx % nWarpSize;
@@ -307,21 +298,22 @@ __device__ void interwarp_transpose(ty x[nSize], ty *shmem) {
   }
 }
 
-template <int nSize, int nThreads, int nWarpSize, typename ty>
-__device__ void hadamard_transform(ty x[nSize], ty *shmem) {
+template <int nSize, int nThreads, int nWarpSize, typename Op>
+__device__ void hadamard_transform(typename Op::ty x[nSize], ty *shmem) {
   constexpr int32_t nWarps = nThreads / nWarpSize;
-  simple_hadamard<nSize, ty>(x);
-  warp_shuffle_hadamard<nSize, nWarpSize, ty>(x);
+  simple_hadamard<nSize, Op>(x);
+  warp_shuffle_hadamard<nSize, nWarpSize, Op>(x);
   if (nWarps > 1) {
     assert(shmem != nullptr);
-    interwarp_transpose<nSize, nThreads, nWarpSize, ty>(x, shmem);
-    warp_shuffle_hadamard<nSize, nWarps, ty>(x);
-    interwarp_transpose<nSize, nThreads, nWarpSize, ty>(x, shmem);
+    interwarp_transpose<nSize, nThreads, nWarpSize, Op>(x, shmem);
+    warp_shuffle_hadamard<nSize, nWarps, Op>(x);
+    interwarp_transpose<nSize, nThreads, nWarpSize, Op>(x, shmem);
   }
 }
 
-template <int nFullSize, int nWarpSize, typename ty>
-__device__ void hadamard_transform_from_shmem(ty *shmem_x) {
+template <int nFullSize, int nWarpSize, typename Op>
+__device__ void hadamard_transform_from_shmem(typename Op::ty *shmem_x) {
+  using ty = typename Op::ty;
   static_assert(nFullSize % nWarpSize == 0,
                 "nFullSize must be divisible by nWarpSize");
   constexpr int32_t nSize = nFullSize / nWarpSize;
@@ -333,7 +325,7 @@ __device__ void hadamard_transform_from_shmem(ty *shmem_x) {
     x[j] = shmem_x[i0 + j];
   }
 
-  hadamard_transform<nSize, nWarpSize, nWarpSize, ty>(x, shmem_x);
+  hadamard_transform<nSize, nWarpSize, nWarpSize, Op>(x, shmem_x);
 
 #pragma unroll
   for (int32_t i = 0; i < nSize; i++) {
@@ -402,7 +394,7 @@ __device__ void hadamard_transform_group_quantize(uint8_t *data,
   }
 
   if constexpr (nFullSize != 256) {
-    hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
+    hadamard_transform<nSize, nWarpSize, nWarpSize, HalfOp>(x, nullptr);
   }
   // hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
 
@@ -438,13 +430,15 @@ __device__ void hadamard_transform_group_quantize(uint8_t *data,
   }
 }
 
-template <int nFullSize, int nWarpSize, typename ty>
-__global__ void hadamard_transform_from_global(const ty *x, ty *out) {
+template <int nFullSize, int nWarpSize, typename Op>
+__global__ void hadamard_transform_from_global(const typename Op::ty *x,
+                                               typename Op::ty *out) {
+  using ty = typename Op::ty;
   extern __shared__ float shmem[];
   ty *shmem_x = (ty *)shmem;
 
   load_to_shmem<nFullSize, nWarpSize, ty>(x, shmem_x);
-  hadamard_transform_from_shmem<nFullSize, nWarpSize, ty>(shmem_x);
+  hadamard_transform_from_shmem<nFullSize, nWarpSize, Op>(shmem_x);
   load_from_shmem<nFullSize, nWarpSize, ty>(out, shmem_x);
 }
 
