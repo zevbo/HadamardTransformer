@@ -139,7 +139,7 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
   //  constexpr int size = side_size * side_size;
   int32_t row_0 = 2 * (threadIdx.x % 4);
   int32_t col_0 = threadIdx.x / 4;
-#define get_shmem_x_128(row, col) shmem_x[row * width + col]
+#define get_shmem_x_128(row, col) shmem_x[(row) * width + (col)]
   packed_half t_0_1 =
       __half2(get_shmem_x_128(row_0, col_0), get_shmem_x_128(row_0 + 1, col_0));
   packed_half t_0_2 = __half2(get_shmem_x_128(row_0 + height / 2, col_0),
@@ -163,14 +163,14 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
 
   __syncthreads();
 
-  if (write_row_0 == 0 && write_col_0 == 0) {
-    // printf("T stuff: %f, %f\n", __half2float(__low2half(t_0_1)),
-    //      __half2float(__high2half(t_0_1)));
-    printf("Stuff for %d, %d: %f, %f, %f, %f\n", write_row_0, write_col_0,
+  if (col_0 == 0) {
+    printf("T stuff for %d: %f, %f\n", row_0, __half2float(__low2half(t_0_1)),
+           __half2float(__high2half(t_0_1)));
+  }
+  if (write_row_0 == 0) {
+    printf("Stuff for %d: %f, %f\n", write_col_0,
            __half2float(__low2half(packed_half_output[0])),
-           __half2float(__high2half(packed_half_output[0])),
-           __half2float(__low2half(packed_half_output[1])),
-           __half2float(__high2half(packed_half_output[1])));
+           __half2float(__high2half(packed_half_output[0])));
   }
 
   get_shmem_x_128(write_row_0, write_col_0) = __low2half(packed_half_output[0]);
@@ -188,7 +188,7 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
   int32_t swizzler = 0; // threadIdx.x % 8;
 #pragma unroll
   for (int32_t i = 0; i < 8; i++) {
-    local_x[i] = shmem_x[i0 + i ^ swizzler];
+    local_x[i] = shmem_x[i0 + i];
     if (i0 == 0) {
       printf("Local x starting at %f\n", __half2float(local_x[i]));
     }
@@ -198,7 +198,7 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
 
 #pragma unroll
   for (int32_t i = 0; i < 8; i++) {
-    shmem_x[i0 + i ^ swizzler] = local_x[i];
+    shmem_x[i0 + i] = local_x[i];
     if (i0 == 0) {
       printf("Local x ending at %f\n", __half2float(local_x[i]));
     }
