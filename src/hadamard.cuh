@@ -367,7 +367,7 @@ __device__ void hadamard_transform_group_quantize(uint8_t *data,
   int32_t i0 = lane_idx * nSize;
 
   if constexpr (nFullSize == 256) {
-    tensor_core_hadamard(reinterpret_cast<half *>(data));
+    tensor_core_hadamard_shmem_256(reinterpret_cast<half *>(data));
   }
 
   // Use vectorized loads to reduce bank conflicts
