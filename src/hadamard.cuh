@@ -68,6 +68,7 @@ __device__ void load_from_shmem(ty *out, const ty *shmem_x) {
   }
 }
 
+/*
 struct HalfOp {
   __device__ inline half add(half h1, half h2) { return __hadd(h1, h2); }
   __device__ inline half hsub(half h1, half h2) { return __hsub(h1, h2); }
@@ -92,6 +93,7 @@ __device__ inline void simple_hadamard_tmpl(ty x[nSize]) {
     }
   }
 }
+*/
 
 template <int nSize, typename ty>
 __device__ inline void simple_hadamard(ty x[nSize]) {
