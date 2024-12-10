@@ -36,32 +36,31 @@ template <int nFullSize> torch::Tensor hadamard_transform_f32(torch::Tensor x) {
 }
 
 torch::Tensor hadamard_transform_tensor_core_128(torch::Tensor x) {
+  printf("Starting tensor core 128 run\n");
+  TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
+  TORCH_CHECK(x.scalar_type() == torch::kHalf, "Must be f16");
+  auto out = torch::empty_like(x, x.options().dtype(at::kHalf).memory_format(
+                                      torch::MemoryFormat::Contiguous));
+  int32_t rows = x.size(0);
+  auto t1 = std::chrono::high_resolution_clock::now();
   /*
-printf("Starting tensor core 128 run\n");
-TORCH_CHECK(x.device().type() == torch::kCUDA, "x must be CUDA");
-TORCH_CHECK(x.scalar_type() == torch::kHalf, "Must be f16");
-auto out = torch::empty_like(x, x.options().dtype(at::kHalf).memory_format(
-                                    torch::MemoryFormat::Contiguous));
-int32_t rows = x.size(0);
-auto t1 = std::chrono::high_resolution_clock::now();
-tensor_core_hadamard_128<<<rows, 32, 128 * sizeof(half)>>>(
-    reinterpret_cast<half *>(x.data_ptr<at::Half>()),
-    reinterpret_cast<half *>(out.data_ptr<at::Half>()));
-cudaDeviceSynchronize();
-auto t2 = std::chrono::high_resolution_clock::now();
-auto us =
-    std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)256) * 2 *
-                                sizeof(half) * 1000 * 1000 /
-                                (448 * 1024 * 1024);
-expected_us /= 1024;
-float slowdown = (float)us / expected_us;
-printf("TC Total us %d: %lu. Ideal: %lu. Slowdown of %.2f\n", rows, us,
-       expected_us,
-       slowdown); //,
-return out;
-*/
-  return 0;
+  tensor_core_hadamard_128<<<rows, 32, 128 * sizeof(half)>>>(
+      reinterpret_cast<half *>(x.data_ptr<at::Half>()),
+      reinterpret_cast<half *>(out.data_ptr<at::Half>()));
+      */
+  cudaDeviceSynchronize();
+  auto t2 = std::chrono::high_resolution_clock::now();
+  auto us =
+      std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)256) * 2 *
+                                  sizeof(half) * 1000 * 1000 /
+                                  (448 * 1024 * 1024);
+  expected_us /= 1024;
+  float slowdown = (float)us / expected_us;
+  printf("TC Total us %d: %lu. Ideal: %lu. Slowdown of %.2f\n", rows, us,
+         expected_us,
+         slowdown); //,
+  return out;
 }
 
 torch::Tensor hadamard_transform_tensor_core_256(torch::Tensor x) {
