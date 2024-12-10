@@ -70,14 +70,22 @@ __device__ void load_from_shmem(ty *out, const ty *shmem_x) {
 
 struct HalfOp {
   using ty = half;
-  static __device__ inline half add(half h1, half h2) { return __hadd(h1, h2); }
-  static __device__ inline half sub(half h1, half h2) { return __hsub(h1, h2); }
+  static __device__ __forceinline__ half add(half h1, half h2) {
+    return __hadd(h1, h2);
+  }
+  static __device__ __forceinline__ half sub(half h1, half h2) {
+    return __hsub(h1, h2);
+  }
 };
 
 struct FloatOp {
   using ty = float;
-  static __device__ inline float add(float h1, float h2) { return h1 + h2; }
-  static __device__ inline float sub(float h1, float h2) { return h1 - h2; }
+  static __device__ __forceinline__ float add(float h1, float h2) {
+    return h1 + h2;
+  }
+  static __device__ __forceinline__ float sub(float h1, float h2) {
+    return h1 - h2;
+  }
 };
 
 template <int nSize, typename Op>
@@ -94,8 +102,8 @@ __device__ inline void simple_hadamard(typename Op::ty x[nSize]) {
         int32_t i1 = i0 + exchange;
         ty a = x[i0];
         ty b = x[i1];
-        x[i0] = a + b; // Op::add(a, b);
-        x[i1] = a - b; // Op::sub(a, b);
+        x[i0] = Op::add(a, b);
+        x[i1] = Op::sub(a, b);
       }
     }
   }
@@ -272,11 +280,8 @@ __device__ void warp_shuffle_hadamard(typename Op::ty x[nSize]) {
     for (int32_t i = 0; i < nSize; i++) {
       ty this_val = x[i];
       ty other_x = __shfl_xor_sync(FULL_MASK, this_val, exchange, nWarpSize);
-      x[i] = other_x + (is_bottom ? -this_val : this_val);
-      /*
       x[i] = (is_bottom ? Op::sub(other_x, -this_val)
                         : Op::add(other_x, this_val));
-                        */
     }
   }
 }
@@ -442,7 +447,7 @@ __global__ void hadamard_transform_from_global(const typename Op::ty *x,
   ty *shmem_x = (ty *)shmem;
 
   load_to_shmem<nFullSize, nWarpSize, ty>(x, shmem_x);
-  // hadamard_transform_from_shmem<nFullSize, nWarpSize, Op>(shmem_x);
+  hadamard_transform_from_shmem<nFullSize, nWarpSize, Op>(shmem_x);
   load_from_shmem<nFullSize, nWarpSize, ty>(out, shmem_x);
 }
 
