@@ -50,7 +50,7 @@ torch::Tensor hadamard_transform_tensor_core_128(torch::Tensor x) {
   auto t2 = std::chrono::high_resolution_clock::now();
   auto us =
       std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)256) * 2 *
+  long unsigned int expected_us = ((uint64_t)rows) * ((uint64_t)128) * 2 *
                                   sizeof(half) * 1000 * 1000 /
                                   (448 * 1024 * 1024);
   expected_us /= 1024;
