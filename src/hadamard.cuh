@@ -299,7 +299,8 @@ __device__ void interwarp_transpose(typename Op::ty x[nSize],
 }
 
 template <int nSize, int nThreads, int nWarpSize, typename Op>
-__device__ void hadamard_transform(typename Op::ty x[nSize], ty *shmem) {
+__device__ void hadamard_transform(typename Op::ty x[nSize],
+                                   typename Op::ty *shmem) {
   constexpr int32_t nWarps = nThreads / nWarpSize;
   simple_hadamard<nSize, Op>(x);
   warp_shuffle_hadamard<nSize, nWarpSize, Op>(x);
@@ -359,7 +360,7 @@ __device__ void hadamard_transform_group_quantize(uint8_t *data,
   int32_t i0 = lane_idx * nSize;
 
   if constexpr (nFullSize == 256) {
-    tensor_core_hadamard(reinterpret_cast<half *>(data));
+    tensor_core_hadamard_shmem_256(reinterpret_cast<half *>(data));
   }
 
   // Use vectorized loads to reduce bank conflicts
