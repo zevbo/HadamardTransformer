@@ -74,8 +74,10 @@ inline __device__ uint32_t half2_to_uint(packed_half h2_val) {
 
 void __device__ tensor_core_hadamard(half *shmem_x) {
   constexpr int side_size = 16;
-  int32_t r0 = threadIdx.x / 4;
-  int32_t c0 = (threadIdx.x % 4) * 2;
+  const int32_t lane_id = threadIdx.x % 32;
+
+  int32_t r0 = lane_id / 4;
+  int32_t c0 = (lane_id % 4) * 2;
 #define is_neg_corn_no_mod(r, c, size) (r >= (size / 2) && c >= (size / 2))
 #define is_neg_corn(r, c, size)                                                \
   ((r % size) >= (size / 2) && (c % size) >= (size / 2))
@@ -93,8 +95,8 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
   //  constexpr int size = side_size * side_size;
   for (int run = 0; run <= 1; run++) {
     for (int side = 0; side <= 1; side++) {
-      int32_t row_0 = 2 * (threadIdx.x % 4);
-      int32_t col_0 = threadIdx.x / 4;
+      int32_t row_0 = 2 * (lane_id % 4);
+      int32_t col_0 = lane_id / 4;
 #define get_shmem_x_under(row, col)                                            \
   shmem_x[(run == 0 ? (row) : (col)) +                                         \
           ((run == 0 ? (col) : (row)) * (side_size))]
@@ -122,8 +124,8 @@ void __device__ tensor_core_hadamard(half *shmem_x) {
 
       __syncthreads();
 
-      int32_t write_row_0 = threadIdx.x / 4;
-      int32_t write_col_0 = (threadIdx.x % 4) * 2;
+      int32_t write_row_0 = lane_id / 4;
+      int32_t write_col_0 = (lane_id % 4) * 2;
       get_shmem_x(write_row_0, write_col_0) = __low2half(packed_half_output[0]);
       get_shmem_x(write_row_0, write_col_0 + 1) =
           __high2half(packed_half_output[0]);
@@ -258,7 +260,12 @@ __device__ void hadamard_transform_group_quantize(uint8_t *data,
   half x[nSize];
 
   int32_t lane_idx = threadIdx.x % nWarpSize;
+
   int32_t i0 = lane_idx * nSize;
+
+  if constexpr (nFullSize == 256) {
+    tensor_core_hadamard(reinterpret_cast<half *>(data));
+  }
 
   // Use vectorized loads to reduce bank conflicts
   {
@@ -291,7 +298,10 @@ __device__ void hadamard_transform_group_quantize(uint8_t *data,
     }
   }
 
-  hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
+  if constexpr (nFullSize != 256) {
+    hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
+  }
+  // hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
 
   half absmax = __float2half(0.0);
 #pragma unroll
