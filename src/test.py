@@ -81,13 +81,6 @@ def test_hadamard_tensor_core(rows):
     t2 = time.perf_counter_ns()
     print(f"{c.shape = }, {c.stride() = }, {c.is_contiguous() = }")
     c = c.T
-    for i in range(0, size):
-        if check(i):
-            print(f"{i = }: {x[0, i] = }")
-
-    for i in range(0, size):
-        if check(i):
-            print(f"{i = }: {c[i, 0] = }, {correct[i, 0] = }")
 
     ideal_t = x.numel() * 2 * 4 * 1000 / (448 * 1024 * 1024 * 1024)
     total_time = (t2 - t1) / (1000 * 1000)
