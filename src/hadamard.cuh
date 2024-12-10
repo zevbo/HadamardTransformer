@@ -163,16 +163,6 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
 
   __syncthreads();
 
-  if (col_0 == 0) {
-    printf("T stuff for %d: %f, %f\n", row_0, __half2float(__low2half(t_0_1)),
-           __half2float(__high2half(t_0_1)));
-  }
-  if (write_row_0 == 0) {
-    printf("Stuff for %d: %f, %f\n", write_col_0,
-           __half2float(__low2half(packed_half_output[0])),
-           __half2float(__high2half(packed_half_output[0])));
-  }
-
   get_shmem_x_128(write_row_0, write_col_0) = __low2half(packed_half_output[0]);
   get_shmem_x_128(write_row_0, write_col_0 + 1) =
       __high2half(packed_half_output[0]);
@@ -184,14 +174,11 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
   __syncthreads();
 
   half local_x[8];
-  int32_t i0 = 16 * threadIdx.x;
+  int32_t i0 = width * threadIdx.x;
   int32_t swizzler = 0; // threadIdx.x % 8;
 #pragma unroll
   for (int32_t i = 0; i < 8; i++) {
     local_x[i] = shmem_x[i0 + i];
-    if (i0 == 0) {
-      printf("Local x starting at %f\n", __half2float(local_x[i]));
-    }
   }
 
   simple_hadamard_tmpl<8, half, HalfOp>(local_x);
@@ -199,9 +186,6 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
 #pragma unroll
   for (int32_t i = 0; i < 8; i++) {
     shmem_x[i0 + i] = local_x[i];
-    if (i0 == 0) {
-      printf("Local x ending at %f\n", __half2float(local_x[i]));
-    }
   }
 }
 

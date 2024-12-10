@@ -65,7 +65,7 @@ def test_hadamard_tensor_core(rows):
     x = torch.randn((rows, size), device="cuda", dtype=torch.float16)
 
     def check(i) -> bool:
-        return i % 8 == 0 and i < 32  # i == 0
+        return True  # i == 0
 
     for i in range(0, size):
         if not check(i):
