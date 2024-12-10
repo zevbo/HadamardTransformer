@@ -1,3 +1,6 @@
 [submodule "QuaRot"]
 	path = QuaRot
 	url = git@github.com:ma-chengyuan/QuaRot.git
+[submodule "marlin"]
+	path = marlin
+	url = git@github.com:carlguo866/marlin.git

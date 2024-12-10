@@ -248,7 +248,7 @@ __device__ uint8_t pack_int4s(uint8_t i41, uint8_t i42) {
   return (i42 << 4) | (i41 & 0xF);
 }
 
-template <int nFullSize, int nWarpSize = 32>
+template <int nFullSize, int nWarpSize = 32, bool quantize = true>
 __device__ void hadamard_transform_group_quantize(uint8_t *data,
                                                   half *group_scale) {
   static_assert(nFullSize % nWarpSize == 0,
@@ -303,31 +303,34 @@ __device__ void hadamard_transform_group_quantize(uint8_t *data,
   }
   // hadamard_transform<nSize, nWarpSize, nWarpSize, half>(x, nullptr);
 
-  half absmax = __float2half(0.0);
+  if constexpr (quantize) {
+    half absmax = __float2half(0.0);
 #pragma unroll
-  for (int32_t i = 0; i < nSize; i++) {
-    absmax = __hmax(absmax, __habs(x[i]));
-  }
+    for (int32_t i = 0; i < nSize; i++) {
+      absmax = __hmax(absmax, __habs(x[i]));
+    }
 
-  // Get the absolute maximum value across the warp, via INTEGER warp reduction
-  // operation. This is a bit of a hack, but doable because absmax are positive,
-  // under which IEEE-754 floats can be compared bit-wise as integers.
-  absmax =
-      __short_as_half(__reduce_max_sync(0xFFFFFFFF, __half_as_short(absmax)));
-  half scale = __hdiv(absmax, __float2half(7.0));
+    // Get the absolute maximum value across the warp, via INTEGER warp
+    // reduction operation. This is a bit of a hack, but doable because absmax
+    // are positive, under which IEEE-754 floats can be compared bit-wise as
+    // integers.
+    absmax =
+        __short_as_half(__reduce_max_sync(0xFFFFFFFF, __half_as_short(absmax)));
+    half scale = __hdiv(absmax, __float2half(7.0));
 
-  if (lane_idx == 0) {
-    *group_scale = scale;
-  }
-  __syncwarp();
-  {
-    int32_t i0_out = i0 / 2;
-    uint8_t *output = data;
+    if (lane_idx == 0) {
+      *group_scale = scale;
+    }
+    __syncwarp();
+    {
+      int32_t i0_out = i0 / 2;
+      uint8_t *output = data;
 #pragma unroll
-    for (int32_t i = 0; i < nSize / 2; i++) {
-      uint8_t packed = pack_int4s(float16_to_int4(x[i * 2], scale),
-                                  float16_to_int4(x[i * 2 + 1], scale));
-      output[i0_out + i] = packed;
+      for (int32_t i = 0; i < nSize / 2; i++) {
+        uint8_t packed = pack_int4s(float16_to_int4(x[i * 2], scale),
+                                    float16_to_int4(x[i * 2 + 1], scale));
+        output[i0_out + i] = packed;
+      }
     }
   }
 }
