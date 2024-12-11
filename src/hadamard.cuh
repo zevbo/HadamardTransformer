@@ -85,16 +85,15 @@ __device__ inline void simple_hadamard_tmpl(ty x[nSize], int32_t swizzler) {
       for (int32_t i = 0; i < exchange; i++) {
         int32_t i0 = group_i0 + i;
         int32_t i1 = i0 ^ exchange;
+        ty a = x[i1];
+        ty b = x[i0];
+        ty sum = op::add(a, b);
         if (reverse_exchange) {
-          ty a = x[i1];
-          ty b = x[i0];
-          x[i1] = op::add(a, b);
-          x[i0] = op::sub(a, b);
+          x[i1] = sum;
+          x[i0] = op::sub(b, a);
         } else {
-          ty a = x[i0];
-          ty b = x[i1];
-          x[i0] = op::add(a, b);
-          x[i1] = op::sub(a, b);
+          x[i0] = sum;
+          x[i1] = op::sub(b, a);
         }
       }
     }
