@@ -77,14 +77,14 @@ template <int nSize, typename ty, typename op>
 __device__ inline void simple_hadamard_tmpl(ty x[nSize], int32_t swizzler) {
 #pragma unroll
   for (int32_t exchange = 1; exchange < nSize; exchange *= 2) {
-    bool reverse_exchange = (swizzler & exchange) != 0;
-    int32_t extra_exchange = reverse_exchange * exchange;
+    // bool reverse_exchange = (swizzler & exchange) != 0;
+    // int32_t extra_exchange = reverse_exchange * exchange;
     int32_t group_size = exchange * 2;
 #pragma unroll
     for (int32_t group_i0 = 0; group_i0 < nSize; group_i0 += group_size) {
 #pragma unroll
       for (int32_t i = 0; i < exchange; i++) {
-        int32_t i0 = group_i0 + i + extra_exchange;
+        int32_t i0 = group_i0 + i; // + extra_exchange;
         int32_t i1 = i0 ^ exchange;
         ty a = x[i0];
         ty b = x[i1];
@@ -177,7 +177,7 @@ void __device__ tensor_core_hadamard_shmem_128(half *shmem_x) {
 
   half local_x[8];
   int32_t i0 = width * threadIdx.x;
-  int32_t swizzler = threadIdx.x % 8;
+  int32_t swizzler = 0; // threadIdx.x % 8;
 #pragma unroll
   for (int32_t i = 0; i < 8; i++) {
     local_x[i] = shmem_x[i0 + i ^ swizzler];
